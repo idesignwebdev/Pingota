@@ -1,0 +1,23 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Request received - Pingota{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="wrap" style="max-width:600px">
+    <h1>Request received</h1>
+    <p class="lede">We have your network details. We review requests during support hours, 8am to 5pm, and contact the email address or phone number you gave.</p>
+
+    <div class="alert alert--ok" style="margin:24px 0" role="status">
+      <span class="alert__label">Next</span>
+      When the panel is ready, we reply with the sign-in details and the trial start. The 24-hour trial needs no card.
+    </div>
+
+    <p>If you need to change something on the request, email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> with the network name.</p>
+
+    <div class="row" style="margin-top:24px; flex-wrap:wrap">
+      <a class="btn btn--primary" href="/">Back to Pingota</a>
+      <a class="btn btn--secondary" href="/docs/">Read the setup guide</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

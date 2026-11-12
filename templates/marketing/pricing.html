@@ -1,0 +1,107 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Pricing - Pingota{% endblock %}
+{% block description %}Pingota hosting starts at KES 500 per month for one router. Every plan includes a 24-hour trial with no card required.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="wrap">
+    <div class="section__head">
+      <h1>Our Pricing</h1>
+    </div>
+
+    {% if lead_plan %}
+    <div class="pricing-grid">
+      <div class="card card--lead pricing-card pricing-card--lead">
+        <span class="badge badge--info">{{ lead_plan.max_routers }} router{{ lead_plan.max_routers|pluralize }}</span>
+        <h2 style="margin:0">{{ lead_plan.name }}</h2>
+        <p class="pricing-card__price">{{ currency }} {{ lead_plan.monthly_price|floatformat:"0g" }}<span>per {{ lead_plan.get_interval_display|lower }}</span></p>
+        {% if lead_plan.max_routers == 1 %}
+          <p>One router. For a single hotspot that is finding its first customers.</p>
+        {% else %}
+          <p>For an estate, campus or market with up to {{ lead_plan.max_routers }} routers. Add a router when the next block comes online.</p>
+        {% endif %}
+        <ul class="check-list">
+          {% for feature in lead_plan.features %}
+            <li>{{ feature }}</li>
+          {% empty %}
+            <li>Up to {{ lead_plan.max_routers }} router{{ lead_plan.max_routers|pluralize }}</li>
+            <li>Paystack and M-Pesa to your own account</li>
+            <li>Capture page, operator panel and event log</li>
+          {% endfor %}
+        </ul>
+        <a class="btn btn--primary" href="/signup/">Start the 24-hour trial</a>
+      </div>
+
+      <div class="stack-24">
+        {% for plan in other_plans %}
+        <div class="card pricing-card">
+          <h3 style="margin:0">{{ plan.name }}</h3>
+          <p class="pricing-card__price">{{ currency }} {{ plan.monthly_price|floatformat:"0g" }}<span>per {{ plan.get_interval_display|lower }}</span></p>
+          {% if plan.max_routers == 1 %}
+            <p>One router. For a single hotspot that is finding its first customers.</p>
+          {% else %}
+            <p>Up to {{ plan.max_routers }} routers. For a growing network with several sites to watch.</p>
+          {% endif %}
+          <a class="btn btn--secondary" href="/signup/">Request a panel</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <p class="pricing-note small">More than ten routers? Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> and we will work out a plan.</p>
+    {% else %}
+    <div class="card">
+      <h2 style="margin:0 0 8px">Plans are being updated</h2>
+      <p class="small" style="margin:0">Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> for current pricing, or <a href="/signup/">request a panel</a> and we will reply with the plan that fits your network.</p>
+    </div>
+    {% endif %}
+
+    <div class="included-list" style="margin-top:32px">
+      <div class="included-item">
+        <h3>Your payment accounts</h3>
+        <p>Connect Paystack for cards and bank payments, M-Pesa Daraja for STK prompts, or both.</p>
+      </div>
+      <div class="included-item">
+        <h3>Router-side limits</h3>
+        <p>Every pass carries a time limit and optional speed and data limits.</p>
+      </div>
+      <div class="included-item">
+        <h3>Guest records</h3>
+        <p>See the device, phone number and payments behind each pass.</p>
+      </div>
+      <div class="included-item">
+        <h3>Support during the day</h3>
+        <p>Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> between 8am and 5pm.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="wrap">
+    <h2>Common questions</h2>
+    <div class="faq-list" style="margin-top:20px">
+      <details class="faq-item">
+        <summary>Where does the guest's money go?</summary>
+        <p>Straight to your Paystack account or M-Pesa till. Pingota receives the payment confirmation and switches the router on.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What happens when a pass runs out?</summary>
+        <p>The router ends the session. Each hotspot user carries a router-side time limit, so access ends even if the panel is down. The panel then removes the stale user.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Can I run it on my own server?</summary>
+        <p>Yes. The code is MIT licensed and the installation guide covers Docker, Dokploy and a no-Docker install. Export the database and run the same image.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Does it work behind CGNAT?</summary>
+        <p>Yes. Each router dials out over TunGuard's WireGuard-compatible tunnel, so it needs no public IP and no port forwarding. The API port is reachable only from inside the tunnel.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Is the trial really free?</summary>
+        <p>Yes. The trial lasts 24 hours and needs no card. We review each request during support hours before the panel is created.</p>
+      </details>
+    </div>
+  </div>
+</section>
+{% endblock %}

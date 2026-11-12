@@ -1,0 +1,202 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Settings - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Keys are stored encrypted. Saved secrets are shown masked and are never sent back to the browser.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  <nav class="settings-nav" aria-label="Settings sections" data-scrollspy>
+    <p class="settings-nav__title">Sections</p>
+    <a href="#routers">Routers</a>
+    <a href="#paystack">Paystack</a>
+    <a href="#mpesa">M-Pesa</a>
+    <a href="#network">Network details</a>
+  </nav>
+
+  <div class="settings-sections stack-24">
+    <section id="routers" class="stack-16">
+      <div class="row-between" style="flex-wrap:wrap">
+        <h2 style="margin:0; font-size:1.3rem">Routers</h2>
+        <a class="btn btn--secondary btn--sm" href="{% url 'panel:network' %}">Add or install a router</a>
+      </div>
+
+      {% for router in routers %}
+      <form method="post" class="card stack-16" data-busy="Saving router">
+        {% csrf_token %}
+        <input type="hidden" name="section" value="router">
+        <input type="hidden" name="router_id" value="{{ router.id }}">
+        <div class="row-between">
+          <h3 style="margin:0">{{ router.name }}</h3>
+          <span class="badge {{ router.health_badge_class }}">{{ router.health_label }}</span>
+        </div>
+
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="router_name_{{ router.id }}">Name</label>
+            <input id="router_name_{{ router.id }}" name="router_name" type="text" value="{{ router.name }}">
+          </div>
+          <div>
+            <label for="profile_{{ router.id }}">Hotspot profile</label>
+            <input id="profile_{{ router.id }}" name="hotspot_profile" type="text" value="{{ router.hotspot_profile }}">
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="host_{{ router.id }}">Host or tunnel address</label>
+            <input id="host_{{ router.id }}" name="host" type="text" value="{{ router.host }}" placeholder="10.70.0.2">
+          </div>
+          <div>
+            <label for="port_{{ router.id }}">API port</label>
+            <input id="port_{{ router.id }}" name="port" type="number" value="{{ router.port }}">
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="user_{{ router.id }}">API user</label>
+            <input id="user_{{ router.id }}" name="api_user" type="text" value="{{ router.api_user }}" autocomplete="off">
+          </div>
+          <div>
+            <label for="pass_{{ router.id }}">API password</label>
+            <input id="pass_{{ router.id }}" name="api_password" type="password" autocomplete="new-password"
+                   placeholder="{% if router.api_password %}Saved, leave blank to keep{% else %}Not set{% endif %}">
+            <p class="help">Leave blank to keep the stored password.</p>
+          </div>
+        </div>
+
+        <div class="row" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" type="submit">Save router</button>
+          <a class="small" href="{% url 'panel:router_detail' router.id %}">Open install page</a>
+        </div>
+      </form>
+
+      <form method="post" action="{% url 'panel:test_router' router.id %}"
+            class="row" style="gap:8px" data-busy="Testing connection">
+        {% csrf_token %}
+        <button class="btn btn--quiet btn--sm" type="submit">Test connection</button>
+        <span class="small muted">Sends a health check to this router.</span>
+      </form>
+      {% empty %}
+      <div class="card">
+        <div class="empty">
+          <h3>No router yet</h3>
+          <p class="small">Add one in Network. Pingota generates the tunnel and API user, then gives you one script to paste into RouterOS.</p>
+          <a class="btn btn--secondary btn--sm" href="{% url 'panel:network' %}">Go to Network</a>
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+
+    <section id="paystack" class="card stack-16">
+      <h2 style="font-size:1.3rem; margin:0">Paystack</h2>
+      <p class="small">Card, bank and mobile money checkout. Payments settle to this account.</p>
+      <form method="post" class="stack-16" data-busy="Saving Paystack">
+        {% csrf_token %}
+        <input type="hidden" name="section" value="paystack">
+        <div>
+          <label for="secret_key">Secret key</label>
+          <input id="secret_key" name="secret_key" type="password" autocomplete="new-password"
+                 placeholder="{% if paystack and paystack.secret_key %}Saved, leave blank to keep{% else %}sk_live_...{% endif %}">
+          <p class="help">Use a test key until you have run a live test.</p>
+        </div>
+        <div>
+          <label for="public_key">Public key</label>
+          <input id="public_key" name="public_key" type="text" value="{{ paystack.public_key|default:'' }}" placeholder="pk_live_...">
+        </div>
+        <div>
+          <label for="subaccount_code">Subaccount code (optional)</label>
+          <input id="subaccount_code" name="subaccount_code" type="text" value="{{ paystack.subaccount_code|default:'' }}" placeholder="ACCT_xxxxx">
+          <p class="help">Set this to settle into your own bank account instead of the platform account.</p>
+        </div>
+        <div>
+          <label for="paystack_webhook">Webhook URL</label>
+          <input id="paystack_webhook" type="text" class="mono" value="{{ webhook_url }}" readonly>
+          <p class="help">Paste this into Paystack under Settings, API Keys and Webhooks.</p>
+        </div>
+        <label class="check">
+          <input type="checkbox" name="enabled" {% if paystack and paystack.enabled %}checked{% endif %}>
+          Accept Paystack payments on the capture page
+        </label>
+        <div><button class="btn btn--secondary" type="submit">Save Paystack</button></div>
+      </form>
+    </section>
+
+    <section id="mpesa" class="card stack-16">
+      <h2 style="font-size:1.3rem; margin:0">M-Pesa (Daraja)</h2>
+      <p class="small">STK push to your own shortcode. The customer approves on their phone and the till is credited directly.</p>
+      <form method="post" class="stack-16" data-busy="Saving M-Pesa">
+        {% csrf_token %}
+        <input type="hidden" name="section" value="mpesa">
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="shortcode">Shortcode</label>
+            <input id="shortcode" name="shortcode" type="password" autocomplete="off"
+                   placeholder="{% if mpesa and mpesa.shortcode %}Saved, leave blank to keep{% else %}174379{% endif %}">
+          </div>
+          <div>
+            <label for="consumer_key">Consumer key</label>
+            <input id="consumer_key" name="consumer_key" type="password" autocomplete="off"
+                   placeholder="{% if mpesa and mpesa.consumer_key %}Saved, leave blank to keep{% else %}Not set{% endif %}">
+          </div>
+        </div>
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="consumer_secret">Consumer secret</label>
+            <input id="consumer_secret" name="consumer_secret" type="password" autocomplete="new-password"
+                   placeholder="{% if mpesa and mpesa.consumer_secret %}Saved, leave blank to keep{% else %}Not set{% endif %}">
+          </div>
+          <div>
+            <label for="passkey">Lipa na M-Pesa passkey</label>
+            <input id="passkey" name="passkey" type="password" autocomplete="new-password"
+                   placeholder="{% if mpesa and mpesa.passkey %}Saved, leave blank to keep{% else %}Not set{% endif %}">
+          </div>
+        </div>
+        <div>
+          <label for="mpesa_callback">Callback URL</label>
+          <input id="mpesa_callback" type="text" class="mono" value="{{ mpesa_callback_url }}" readonly>
+          <p class="help">Register this URL in the Daraja portal.</p>
+        </div>
+        <label class="check">
+          <input type="checkbox" name="enabled" {% if mpesa and mpesa.enabled %}checked{% endif %}>
+          Offer M-Pesa on the capture page
+        </label>
+        <div><button class="btn btn--secondary" type="submit">Save M-Pesa</button></div>
+      </form>
+    </section>
+
+    <section id="network" class="card stack-16">
+      <h2 style="font-size:1.3rem; margin:0">Network details</h2>
+      <form method="post" class="stack-16" data-busy="Saving details">
+        {% csrf_token %}
+        <input type="hidden" name="section" value="brand">
+        <div>
+          <label for="name">Network name shown to guests</label>
+          <input id="name" name="name" type="text" value="{{ isp.name }}">
+        </div>
+        <div class="grid-2" style="gap:16px">
+          <div>
+            <label for="support_phone">Support phone</label>
+            <input id="support_phone" name="support_phone" type="tel" value="{{ isp.support_phone }}" placeholder="0712 345 678">
+            <p class="help">Shown on the capture page and used for the help link.</p>
+          </div>
+          <div>
+            <label for="currency">Currency</label>
+            <input id="currency" name="currency" type="text" value="{{ isp.currency }}" maxlength="8">
+            <p class="help">A short code such as KES.</p>
+          </div>
+        </div>
+        <div><button class="btn btn--secondary" type="submit">Save details</button></div>
+      </form>
+
+      <p class="small" style="margin:0">
+        Capture page: <a href="/portal/{{ isp.slug }}/" target="_blank" rel="noopener">/portal/{{ isp.slug }}/</a>
+      </p>
+    </section>
+  </div>
+</div>
+{% endblock %}

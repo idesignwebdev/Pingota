@@ -1,0 +1,51 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Customers - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Customers</h1>
+    <p class="muted">Devices that have started a checkout on the capture page.</p>
+  </div>
+  <form class="filters" method="get" action="{% url 'panel:customers' %}">
+    <label class="sr-only" for="q">Search by device address or phone</label>
+    <input id="q" name="q" type="text" value="{{ q }}" placeholder="Device address or phone">
+    <button class="btn btn--secondary btn--sm" type="submit">Search</button>
+  </form>
+</div>
+
+<div class="card data-card">
+  {% if rows %}
+  <table>
+    <thead>
+      <tr><th scope="col">Device</th><th scope="col">Phone</th><th scope="col">Current access</th><th scope="col">First seen</th><th scope="col" class="num">Paid to date</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="mono">{{ row.customer.mac_address }}</td>
+        <td>{% if row.customer.phone %}{{ row.customer.phone }}{% else %}<span class="muted">Not captured</span>{% endif %}</td>
+        <td>
+          {% if row.grant %}
+            {{ row.grant.package.name }} <span class="small muted">· {{ row.grant.time_left_label }} left</span>
+          {% else %}
+            <span class="badge badge--off">No active pass</span>
+          {% endif %}
+        </td>
+        <td class="small">{{ row.customer.first_seen|date:"d M Y" }}</td>
+        <td class="num">{{ isp.currency }} {{ row.spent|floatformat:0 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px">
+    <div class="empty">
+      <h3>{% if q %}No device matches "{{ q }}"{% else %}No customers yet{% endif %}</h3>
+      <p class="small" style="margin:0">
+        {% if q %}Try a partial device address, or the last four digits of the phone number.{% else %}A device appears here after it starts a checkout on the capture page.{% endif %}
+      </p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

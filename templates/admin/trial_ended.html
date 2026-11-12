@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Trial ended - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:560px; padding-top:64px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card stack-16">
+    <div>
+      <h1 style="font-size:1.5rem; margin:0 0 4px">The trial for {{ isp.name }} has ended</h1>
+      <p class="small" style="margin:0">
+        The 24-hour trial ended{% if isp.trial_ends_at %} on {{ isp.trial_ends_at|date:"d M Y, H:i" }}{% endif %}.
+        Guest passes that are already paid keep working and payments still settle to your account.
+      </p>
+    </div>
+
+    <div>
+      <p class="small" style="margin:0 0 12px">Choose a plan to reopen the operator panel and keep adding routers and passes.</p>
+      <div class="row" style="gap:8px; flex-wrap:wrap">
+        <a class="btn btn--primary" href="/pricing/">See plans</a>
+        <a class="btn btn--secondary" href="mailto:idesignweb.co.ke@gmail.com?subject=Upgrade%20{{ isp.name|urlencode }}">Email support</a>
+      </div>
+    </div>
+
+    <form method="post" action="/admin/logout/" data-busy="Signing out">
+      {% csrf_token %}
+      <button class="btn btn--ghost btn--sm" type="submit">Sign out</button>
+    </form>
+  </div>
+</main>
+{% endblock %}

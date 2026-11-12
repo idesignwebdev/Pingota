@@ -1,0 +1,40 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Voucher batches - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Batches</h1>
+    <p class="muted">Each generation run, with how many codes it produced.</p>
+  </div>
+  <a class="small" href="{% url 'panel:vouchers' %}">All codes</a>
+</div>
+
+<div class="card data-card">
+  {% if rows %}
+  <table>
+    <thead><tr><th scope="col">Batch</th><th scope="col">Pass</th><th scope="col" class="num">Codes</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.batch|default:"Unlabelled" }}</td>
+        <td>{{ row.package__name }}</td>
+        <td class="num">{{ row.total }}</td>
+        <td>
+          <a class="small" href="{% url 'panel:vouchers' %}?state=all{% if row.batch %}&batch={{ row.batch|urlencode }}{% endif %}">Open</a>
+          <span class="muted">·</span>
+          <a class="small" href="{% url 'panel:voucher_sheet' %}{% if row.batch %}?batch={{ row.batch|urlencode }}{% endif %}" target="_blank" rel="noopener">Print</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px">
+    <div class="empty">
+      <h3>No batches yet</h3>
+      <p class="small" style="margin:0">Generating codes creates a batch you can print and track.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

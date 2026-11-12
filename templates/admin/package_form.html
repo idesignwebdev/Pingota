@@ -1,0 +1,123 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}{% if package %}Edit pass{% else %}New pass{% endif %} - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>{% if package %}Edit {{ package.name }}{% else %}New pass{% endif %}</h1>
+    <p class="muted">Duration and speed are enforced by the router, not by a browser timer.</p>
+  </div>
+  <a class="small" href="{% url 'panel:packages' %}">Back to passes</a>
+</div>
+
+<form method="post" class="grid-lead" style="align-items:start" data-busy="Saving pass">
+  {% csrf_token %}
+  <div class="card card--span stack-16">
+    <div>
+      <label for="name">Name shown to the guest</label>
+      <input id="name" name="name" type="text" required maxlength="80"
+             value="{{ package.name|default:'' }}" placeholder="Full day">
+      <p class="help">Keep it to what the guest is buying: 1 hour, Full day, Home monthly.</p>
+    </div>
+
+    <div class="grid-2" style="gap:16px">
+      <div>
+        <label for="kind">Billing type</label>
+        <select id="kind" name="kind">
+          <option value="hourly" {% if not package or package.kind == "hourly" %}selected{% endif %}>Prepaid pass</option>
+          <option value="subscription" {% if package and package.kind == "subscription" %}selected{% endif %}>Monthly product</option>
+        </select>
+      </div>
+      <div>
+        <label for="price">Price ({{ isp.currency }})</label>
+        <input id="price" name="price" type="number" min="1" step="1" required
+               value="{{ package.price|floatformat:0|default:'10' }}">
+      </div>
+    </div>
+
+    <div class="grid-2" style="gap:16px">
+      <div>
+        <label for="duration_value">Lasts for</label>
+        <input id="duration_value" name="duration_value" type="number" min="1" required
+               value="{{ duration_value|default:'1' }}">
+      </div>
+      <div>
+        <label for="duration_units">Unit</label>
+        <select id="duration_units" name="duration_units">
+          <option value="minutes" {% if duration_units == 'minutes' %}selected{% endif %}>Minutes</option>
+          <option value="hours" {% if duration_units == 'hours' or not duration_units %}selected{% endif %}>Hours</option>
+          <option value="days" {% if duration_units == 'days' %}selected{% endif %}>Days</option>
+        </select>
+        <p class="help">For a monthly product, use 30 days. The router counts down from the payment.</p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="gap:16px">
+      <div>
+        <label for="download_kbps">Download limit (kbps)</label>
+        <input id="download_kbps" name="download_kbps" type="number" min="0" value="{{ package.download_kbps|default:0 }}">
+        <p class="help">0 uses the router's hotspot profile.</p>
+      </div>
+      <div>
+        <label for="upload_kbps">Upload limit (kbps)</label>
+        <input id="upload_kbps" name="upload_kbps" type="number" min="0" value="{{ package.upload_kbps|default:0 }}">
+      </div>
+    </div>
+
+    <div class="grid-2" style="gap:16px">
+      <div>
+        <label for="device_limit">Devices per purchase</label>
+        <input id="device_limit" name="device_limit" type="number" min="1" value="{{ package.device_limit|default:1 }}">
+      </div>
+      <div>
+        <label for="sort_order">Order on the capture page</label>
+        <input id="sort_order" name="sort_order" type="number" value="{{ package.sort_order|default:0 }}">
+      </div>
+    </div>
+
+    <fieldset style="border:1px solid var(--line); border-radius:10px; padding:16px">
+      <legend class="small" style="font-weight:600; padding:0 6px">Fair use allowance</legend>
+      <div class="grid-2" style="gap:16px">
+        <div>
+          <label for="data_cap_mb">Data included (MB)</label>
+          <input id="data_cap_mb" name="data_cap_mb" type="number" min="0"
+                 value="{% if package.data_cap_mb %}{{ package.data_cap_mb }}{% endif %}" placeholder="Unlimited">
+          <p class="help">Leave blank for no cap. Usage is read from the router every 30 seconds.</p>
+        </div>
+        <div>
+          <label for="fup_action">When the allowance runs out</label>
+          <select id="fup_action" name="fup_action">
+            <option value="throttle" {% if not package or package.fup_action == 'throttle' %}selected{% endif %}>Slow the connection down</option>
+            <option value="block" {% if package and package.fup_action == 'block' %}selected{% endif %}>End the pass</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2" style="gap:16px; margin-top:16px">
+        <div>
+          <label for="fup_download_kbps">Throttled download (kbps)</label>
+          <input id="fup_download_kbps" name="fup_download_kbps" type="number" min="64" value="{{ package.fup_download_kbps|default:256 }}">
+        </div>
+        <div>
+          <label for="fup_profile">Or a named router profile</label>
+          <input id="fup_profile" name="fup_profile" type="text" maxlength="60" value="{{ package.fup_profile|default:'' }}" placeholder="fup-slow">
+          <p class="help">Takes precedence over the kbps values if it exists on the router.</p>
+        </div>
+      </div>
+    </fieldset>
+
+    <label class="check">
+      <input type="checkbox" name="is_active" {% if not package or package.is_active %}checked{% endif %}>
+      Show this pass on the capture page
+    </label>
+
+    <div class="row">
+      <button class="btn btn--primary" type="submit">{% if package %}Save pass{% else %}Create pass{% endif %}</button>
+      <a class="btn btn--secondary" href="{% url 'panel:packages' %}">Cancel</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Sizing a pass</h3>
+    <p class="small" style="margin:0">A guest on a 5 Mbps link downloading a 700 MB update needs about 18 minutes. A pass shorter than that will feel broken even when it works.</p>
+  </div>
+</form>
+{% endblock %}

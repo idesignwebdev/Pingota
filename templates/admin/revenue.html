@@ -1,0 +1,99 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Revenue - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Revenue</h1>
+    <p class="muted">Settled payments over the last 30 days. The table shows the 50 most recent attempts, including unpaid ones.</p>
+  </div>
+</div>
+
+<div class="grid-lead">
+  <div class="card card--lead">
+    <div class="stat-lead">
+      <small>Collected in 30 days</small>
+      {{ isp.currency }} {{ total|floatformat:0 }}
+    </div>
+    <div id="revenue-chart" class="bars" role="img" aria-label="Collected revenue by day with sales, last 30 days" style="height:180px; margin-top:16px"></div>
+  </div>
+
+  <div class="card">
+    <h3>Where it settles</h3>
+    {% if paystack and paystack.enabled %}
+      <p class="small" style="margin:0">
+        Paystack is live for card and bank payments.
+        {% if paystack.subaccount_code %}Settles to your subaccount.{% else %}Settles to the platform account until you add a subaccount code.{% endif %}
+      </p>
+    {% endif %}
+    {% if mpesa and mpesa.enabled %}
+      <p class="small" style="margin:8px 0 0">M-Pesa is live for STK prompts to till {{ mpesa_till }}.</p>
+    {% endif %}
+    {% if not paystack and not mpesa or not paystack.enabled and not mpesa.enabled %}
+      <p class="small" style="margin:0">No payment provider is live yet. Add keys in <a href="{% url 'panel:settings' %}">Settings</a> before sharing the capture page.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card data-card" style="margin-top:24px">
+  {% if payments %}
+  <table>
+    <thead>
+      <tr><th scope="col">Reference</th><th scope="col">Device</th><th scope="col">Pass</th><th scope="col">Provider</th><th scope="col">Status</th><th scope="col" class="num">Amount</th><th scope="col">Created</th></tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td class="mono">{{ p.reference }}</td>
+        <td class="mono">{% if p.customer %}{{ p.customer.mac_address }}{% else %}<span class="muted">Unknown</span>{% endif %}</td>
+        <td>{{ p.package.name }}</td>
+        <td class="small">{{ p.get_provider_display }}</td>
+        <td>
+          {% if p.status == "paid" %}<span class="badge badge--ok">Paid</span>
+          {% elif p.status == "pending" %}<span class="badge badge--warn">Pending</span>
+          {% elif p.status == "failed" %}
+            <span class="badge badge--danger">Failed</span>
+            {% if p.failure_reason %}
+              <details class="event-detail">
+                <summary>Details</summary>
+                <span class="mono">{{ p.failure_reason }}</span>
+              </details>
+            {% endif %}
+          {% else %}<span class="badge badge--off">Abandoned</span>{% endif %}
+        </td>
+        <td class="num">{{ isp.currency }} {{ p.amount|floatformat:0 }}</td>
+        <td class="small">{{ p.created_at|date:"d M H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px">
+    <div class="empty">
+      <h3>No payments in the last 30 days</h3>
+      <p class="small" style="margin:0">Share the capture page link and the first pass will appear here as soon as it is attempted.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script id="revenue-data" type="application/json">{{ chart|safe }}</script>
+<script>
+  (function () {
+    var node = document.getElementById('revenue-data');
+    var target = document.getElementById('revenue-chart');
+    if (!node || !target) return;
+    var data = JSON.parse(node.textContent || '[]');
+    var max = Math.max.apply(null, data.map(function (d) { return d.total; }).concat([1]));
+    data.forEach(function (d) {
+      var col = document.createElement('div');
+      col.className = 'bars__col';
+      var bar = document.createElement('div');
+      bar.className = 'bars__bar';
+      bar.style.height = Math.max(3, Math.round((d.total / max) * 100)) + '%';
+      bar.title = d.day + ': {{ isp.currency }} ' + d.total;
+      col.appendChild(bar);
+      target.appendChild(col);
+    });
+  })();
+</script>
+{% endblock %}

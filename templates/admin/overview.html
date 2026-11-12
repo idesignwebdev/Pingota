@@ -1,0 +1,155 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Overview - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <p class="muted">{{ isp.name }}</p>
+  </div>
+  <div class="row" style="flex-wrap:wrap">
+    <a class="btn btn--secondary btn--sm" href="/portal/{{ isp.slug }}/" target="_blank" rel="noopener">Open capture page</a>
+    <a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New pass</a>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="card card--lead card--span">
+    <div class="stat-lead">
+      <small>Collected in the last 24 hours</small>
+      {{ isp.currency }} {{ revenue_today|floatformat:"0g" }}
+    </div>
+    <p class="small" style="margin-top:8px">
+      {% if decided %}
+        {{ settled }} of {{ decided }} completed checkouts were paid ({{ success_rate }}%).
+        {% if success_rate < 70 %}Check that the payment keys are active and the webhook URL is reachable.{% endif %}
+      {% else %}
+        No checkout has been attempted in the last 24 hours.
+      {% endif %}
+    </p>
+
+    <div id="revenue-bars" class="bars" role="img" aria-label="Collected revenue by day with sales, last seven days"></div>
+    <p class="small" style="margin-top:8px">Last seven days: {{ isp.currency }} {{ revenue_week|floatformat:"0g" }}</p>
+  </div>
+
+  <div class="card">
+    <div class="row-between">
+      <div class="stat">
+        <span class="stat__value">{{ online_count }}</span>
+        <span class="stat__label">Devices online now</span>
+      </div>
+      <span class="badge {% if expiring_soon %}badge--warn{% else %}badge--off{% endif %}">{{ expiring_soon }} ending within 30 min</span>
+    </div>
+    <div class="stack-8" style="margin-top:16px">
+      {% for package in by_package %}
+        <div class="row-between small">
+          <span class="muted">{{ package.package__name }}</span>
+          <span>{{ package.count }} sold, {{ isp.currency }} {{ package.total|floatformat:"0g" }}</span>
+        </div>
+      {% empty %}
+        <p class="small" style="margin:0">No sales in the last 24 hours. Passes appear here as soon as one is paid.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:12px">Routers</h3>
+    <div class="stack-8">
+      {% for router in routers %}
+        <div class="row-between small">
+          <a href="{% url 'panel:router_detail' router.id %}">{{ router.name }}</a>
+          <span class="badge {{ router.health_badge_class }}">{{ router.health_label }}</span>
+        </div>
+      {% empty %}
+        <p class="small" style="margin:0">No router yet. <a href="{% url 'panel:network' %}">Add one in Network</a> to start selling access.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-top:24px">
+  <div class="card">
+    <div class="row-between" style="margin-bottom:8px">
+      <h3 style="margin:0">Recent payments</h3>
+      <a class="small" href="{% url 'panel:revenue' %}">All payments</a>
+    </div>
+    {% if recent_payments %}
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th scope="col">Reference</th><th scope="col">Pass</th><th scope="col">Status</th><th scope="col" class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for p in recent_payments %}
+          <tr>
+            <td class="mono">{{ p.reference }}</td>
+            <td>{{ p.package.name }}</td>
+            <td>
+              {% if p.status == "paid" %}<span class="badge badge--ok">Paid</span>
+              {% elif p.status == "pending" %}<span class="badge badge--warn">Pending</span>
+              {% elif p.status == "failed" %}<span class="badge badge--danger">Failed</span>
+              {% else %}<span class="badge badge--off">Abandoned</span>{% endif %}
+            </td>
+            <td class="num">{{ isp.currency }} {{ p.amount|floatformat:"0g" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">
+        <h3>No payments yet</h3>
+        <p class="small" style="margin:0">When a guest pays on the capture page, the payment appears here with its reference and status.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:8px">Event log</h3>
+    <ul class="events">
+      {% for event in events %}
+        <li>
+          <time>{{ event.created_at|date:"d M H:i" }}</time>
+          <span>
+            {% if event.level == "error" %}<span class="badge badge--danger">{{ event.get_event_display }}</span>
+            {% elif event.level == "warn" %}<span class="badge badge--warn">{{ event.get_event_display }}</span>
+            {% else %}<span class="badge badge--info">{{ event.get_event_display }}</span>{% endif %}
+            {% if event.level == "error" and event.detail %}
+              <details class="event-detail">
+                <summary>Details</summary>
+                <span class="mono">{{ event.detail }}</span>
+              </details>
+            {% elif event.detail %}
+              <span class="small">{{ event.detail }}</span>
+            {% endif %}
+          </span>
+        </li>
+      {% empty %}
+        <li><time>-</time><span class="muted">Nothing has happened yet. Connections and expiries are recorded here.</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<script id="chart-data" type="application/json">{{ chart|safe }}</script>
+<script>
+  (function () {
+    var node = document.getElementById('chart-data');
+    var target = document.getElementById('revenue-bars');
+    if (!node || !target) return;
+    var data = JSON.parse(node.textContent || '[]');
+    var max = Math.max.apply(null, data.map(function (d) { return d.total; }).concat([1]));
+    data.forEach(function (d) {
+      var col = document.createElement('div');
+      col.className = 'bars__col';
+      var bar = document.createElement('div');
+      bar.className = 'bars__bar';
+      bar.style.height = Math.max(3, Math.round((d.total / max) * 100)) + '%';
+      bar.title = d.day + ': {{ isp.currency }} ' + d.total;
+      var label = document.createElement('div');
+      label.className = 'bars__label';
+      label.textContent = d.day;
+      col.appendChild(bar);
+      col.appendChild(label);
+      target.appendChild(col);
+    });
+  })();
+</script>
+{% endblock %}

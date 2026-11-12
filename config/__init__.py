@@ -1,0 +1,1 @@
+"""Pingota project package."""

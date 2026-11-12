@@ -1,0 +1,53 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Generate vouchers - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Generate codes</h1>
+    <p class="muted">Codes are created unused. Nothing is charged to a customer until a code is redeemed.</p>
+  </div>
+  <a class="small" href="{% url 'panel:vouchers' %}">Back to vouchers</a>
+</div>
+
+{% if packages_qs %}
+<form method="post" class="stack-24" style="max-width:640px" data-busy="Generating codes">
+  {% csrf_token %}
+  <div class="card stack-16">
+    <div>
+      <label for="package_id">Pass each code unlocks</label>
+      <select id="package_id" name="package_id" required>
+        {% for package in packages_qs %}
+          <option value="{{ package.id }}">{{ package.name }} · {{ isp.currency }} {{ package.price|floatformat:"0g" }} · {{ package.duration_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="grid-2" style="gap:16px">
+      <div>
+        <label for="count">How many codes</label>
+        <input id="count" name="count" type="number" min="1" max="500" value="20" required>
+        <p class="help">Up to 500 at a time.</p>
+      </div>
+      <div>
+        <label for="batch">Batch label</label>
+        <input id="batch" name="batch" type="text" maxlength="40" placeholder="Market gate November">
+        <p class="help">Use the same label to print and track one batch.</p>
+      </div>
+    </div>
+    <div>
+      <label for="expires_on">Unredeemed codes expire on</label>
+      <input id="expires_on" name="expires_on" type="date" min="{{ today }}">
+      <p class="help">Leave blank if the codes should never expire.</p>
+    </div>
+    <div><button class="btn btn--primary" type="submit">Generate codes</button></div>
+  </div>
+</form>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <h3>No active pass to attach a code to</h3>
+    <p class="small">Create a pass first. Each voucher unlocks one pass when a guest redeems it.</p>
+    <a class="btn btn--secondary btn--sm" href="{% url 'panel:package_add' %}">Create a pass</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

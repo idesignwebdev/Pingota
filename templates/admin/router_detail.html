@@ -1,0 +1,142 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}{{ router.name }} - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>{{ router.name }}</h1>
+    <p class="muted">{{ router.health_description }}</p>
+  </div>
+  <div class="row">
+    <span class="badge {{ router.health_badge_class }}">{{ router.health_label }}</span>
+    <a class="small" href="{% url 'panel:network' %}">All routers</a>
+  </div>
+</div>
+
+<div class="grid-lead">
+  <div class="card card--span">
+    <h3 style="margin-bottom:4px">Step 1: Copy this into the router</h3>
+    <p class="small">
+      Open WinBox, then <strong>New Terminal</strong> (or SSH) on this router and paste the whole block.
+      It creates the tunnel, the restricted API user, and reports back to Pingota.
+    </p>
+
+    {% if script_error %}
+      <div class="alert alert--err" role="alert">
+        <span class="alert__label">Script unavailable</span>
+        The install script could not be generated. Check the tunnel settings, then reload this page.
+        <details class="event-detail">
+          <summary>Details</summary>
+          <span class="mono">{{ script_error }}</span>
+        </details>
+      </div>
+    {% else %}
+      <div style="position:relative">
+        <button class="btn btn--ghost btn--sm" id="copy-script" style="position:absolute; top:10px; right:10px" type="button">Copy</button>
+        <pre id="install-script" class="code-block" style="max-height:380px; padding-top:52px"><code>{{ script }}</code></pre>
+      </div>
+      <p class="help" style="margin-top:8px">
+        Contains this router's API password. Treat the script like a password and regenerate it if it leaks.
+      </p>
+    {% endif %}
+
+    <h3 style="margin-top:32px; margin-bottom:4px">Step 2: Wait for the report</h3>
+    <p class="small">
+      The last line of the script calls back to Pingota. When it arrives, this page shows <strong>Connected</strong> and the router's model and RouterOS version. There is no save step.
+      <a href="{% url 'panel:router_detail' router.id %}">Refresh this page</a> to check again.
+    </p>
+
+    {% if router.health_state == "pending" %}
+    <div class="alert alert--warn" style="margin-top:12px">
+      <span class="alert__label">Nothing reported yet</span>
+      Check that TunGuard is running, UDP {{ tunnel_port }} is open, and the router can reach the public tunnel host. Then paste the install script again.
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Tunnel</h3>
+    <dl class="kv">
+      <dt>Server</dt><dd class="mono">{{ tunnel_host }}</dd>
+      <dt>Port</dt><dd class="mono">{{ tunnel_port }}</dd>
+      <dt>Router address</dt><dd class="mono">{{ router.tunnel_address }}</dd>
+      <dt>API user</dt><dd class="mono">{{ router.api_user }}</dd>
+    </dl>
+    <p class="small" style="margin-top:12px">
+      The router dials out to TunGuard, so it works behind CGNAT with no port forwarding. Pingota checks the RouterOS API through the tunnel before marking it connected.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Danger zone</h3>
+    <p class="small">Regenerate the credentials if the script leaked or the router was replaced. The old script stops working immediately.</p>
+    <form method="post" action="{% url 'panel:router_regenerate' router.id %}"
+          data-confirm="Regenerate credentials for this router? It goes offline until the new script is pasted."
+          data-busy="Regenerating credentials">
+      {% csrf_token %}
+      <button class="btn btn--danger btn--sm" type="submit">Regenerate credentials</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-bottom:8px">Router events</h3>
+  <ul class="events">
+    {% for event in events %}
+      <li>
+        <time>{{ event.created_at|date:"d M H:i" }}</time>
+        <span>
+          {% if event.level == "error" %}<span class="badge badge--danger">{{ event.get_event_display }}</span>
+          {% elif event.level == "warn" %}<span class="badge badge--warn">{{ event.get_event_display }}</span>
+          {% else %}<span class="badge badge--info">{{ event.get_event_display }}</span>{% endif %}
+          {% if event.level == "error" and event.detail %}
+            <details class="event-detail">
+              <summary>Details</summary>
+              <span class="mono">{{ event.detail }}</span>
+            </details>
+          {% elif event.detail %}
+            <span class="small">{{ event.detail }}</span>
+          {% endif %}
+        </span>
+      </li>
+    {% empty %}
+      <li><time>-</time><span class="muted">No events for this router yet.</span></li>
+    {% endfor %}
+  </ul>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('copy-script');
+    var pre = document.getElementById('install-script');
+    if (!btn || !pre) return;
+
+    function selectText() {
+      var range = document.createRange();
+      range.selectNodeContents(pre);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function done(label) {
+      btn.textContent = label;
+      window.setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+    }
+
+    btn.addEventListener('click', function () {
+      var text = pre.textContent;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () {
+          done('Copied');
+        }).catch(function () {
+          selectText();
+          done('Select and copy');
+        });
+      } else {
+        selectText();
+        done('Select and copy');
+      }
+    });
+  })();
+</script>
+{% endblock %}

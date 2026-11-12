@@ -1,0 +1,33 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page could not load - Pingota</title>
+  <meta name="theme-color" content="#14213D">
+  <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Poppins:wght@600&amp;display=swap">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <main class="wrap" id="main" style="max-width:560px; padding-top:64px; padding-bottom:64px">
+    <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+      {% include "partials/logo.svg" %} Pingota
+    </a>
+
+    <div class="card stack-16">
+      <div>
+        <h1 style="font-size:1.5rem; margin:0 0 4px">This page could not load</h1>
+        <p class="small" style="margin:0">Your passes and payment records are safe. Reload in a moment, or go back to the home page.</p>
+      </div>
+      <div class="row" style="gap:8px; flex-wrap:wrap">
+        <a class="btn btn--primary" href="/">Go to Pingota</a>
+        <a class="btn btn--secondary" href="/admin/login/">Operator sign in</a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

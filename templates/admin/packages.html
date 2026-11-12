@@ -1,0 +1,48 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Passes - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Passes</h1>
+    <p class="muted">What the capture page sells. Prices are charged in {{ isp.currency }}.</p>
+  </div>
+  <a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New pass</a>
+</div>
+
+{% if items %}
+<div class="card data-card">
+  <table>
+    <thead>
+      <tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Duration</th><th scope="col">Speed</th><th scope="col" class="num">Price</th><th scope="col">Shown</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+    </thead>
+    <tbody>
+      {% for package in items %}
+      <tr>
+        <td>{{ package.name }}</td>
+        <td>
+          {% if package.kind == "subscription" %}<span class="badge badge--info">Subscription</span>
+          {% else %}<span class="badge badge--off">Prepaid pass</span>{% endif %}
+        </td>
+        <td>{{ package.duration_label }}</td>
+        <td class="small">
+          {% if package.download_kbps %}{{ package.download_kbps }} kbps down{% else %}Profile default{% endif %}
+          {% if package.upload_kbps %} · {{ package.upload_kbps }} up{% endif %}
+        </td>
+        <td class="num">{{ isp.currency }} {{ package.price|floatformat:0 }}</td>
+        <td>{% if package.is_active %}<span class="badge badge--ok">Live</span>{% else %}<span class="badge badge--off">Hidden</span>{% endif %}</td>
+        <td><a class="small" href="{% url 'panel:package_edit' package.id %}">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <h3>No passes yet</h3>
+    <p class="small">Create at least one pass before sharing the capture page. Start with a short pass you can test on your own phone.</p>
+    <a class="btn btn--secondary btn--sm" href="{% url 'panel:package_add' %}">Create the first pass</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Passes - {{ isp.name }}{% endblock %}
+
+{% block portal %}
+<div class="portal__lead">
+  <h1>Choose a pass</h1>
+  <p class="lede">Time starts when the payment is confirmed, not when you pick the pass.</p>
+</div>
+
+<div style="margin-top:24px">
+  {% include "portal/_packages.html" %}
+</div>
+
+<p style="margin-top:20px">
+  <a class="btn btn--secondary btn--block" href="/portal/{{ isp.slug }}/">Back to my pass</a>
+</p>
+{% endblock %}

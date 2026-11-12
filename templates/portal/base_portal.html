@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="portal">
+  <header class="portal__top">
+    <div class="wrap portal__top-inner">
+      <div class="portal__brand">{% include "partials/logo.svg" %} {{ isp.name|default:"Pingota" }}</div>
+    </div>
+  </header>
+  <main class="portal__main" id="main">
+    {% block portal %}{% endblock %}
+    {% if isp.support_phone %}
+      <p class="portal__help">Need help? Call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a></p>
+    {% else %}
+      <p class="portal__help">Need help? Ask the operator at the counter.</p>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

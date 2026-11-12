@@ -1,0 +1,76 @@
+# Dokploy / plain Docker compose.
+#
+#   docker compose up -d                     # web + mongo
+#   docker compose up -d web                 # web only, using an Atlas MONGODB_URI
+#
+# On Dokploy: new project -> Compose -> point at this file, then set the
+# variables from .env.example in the Dokploy UI and attach a domain to `web`.
+
+name: pingota
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: ghcr.io/OWNER/pingota:latest   # use the CI image instead of building
+    restart: unless-stopped
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?set FIELD_ENCRYPTION_KEY}
+      # Router onboarding: TunGuard runs on the Docker host.
+      ROUTER_TUNNEL_HOST: ${ROUTER_TUNNEL_HOST:?set ROUTER_TUNNEL_HOST}
+      ROUTER_TUNNEL_PORT: ${ROUTER_TUNNEL_PORT:-13231}
+      ROUTER_TUNNEL_SUBNET: ${ROUTER_TUNNEL_SUBNET:-10.70.0.0/16}
+      TUNGARD_API_URL: ${TUNGARD_API_URL:-http://host.docker.internal:9000}
+      TUNGARD_API_KEY: ${TUNGARD_API_KEY:?set TUNGARD_API_KEY}
+      # Database: mongo service by default, or a managed cluster.
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017}
+      MONGODB_NAME: ${MONGODB_NAME:-pingota}
+      DATABASE_URL: ${DATABASE_URL:-}
+      # First account (platform owner). ISP operators are invited from the panel.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SEED_DEMO: ${SEED_DEMO:-false}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      RUN_SCHEDULER: ${RUN_SCHEDULER:-true}
+      TIME_ZONE: ${TIME_ZONE:-Africa/Nairobi}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WEB_THREADS: ${WEB_THREADS:-4}
+    volumes:
+      - pingota_data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8000"
+    depends_on:
+      mongo:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["--bind_ip_all", "--quiet"]
+    volumes:
+      - pingota_mongo:/data/db
+    expose:
+      - "27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pingota_data:
+  pingota_mongo:

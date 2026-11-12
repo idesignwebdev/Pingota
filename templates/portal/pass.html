@@ -1,0 +1,39 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}My passes - {{ isp.name }}{% endblock %}
+
+{% block portal %}
+<div class="portal__lead">
+  <h1>My passes</h1>
+</div>
+
+{% if not mac %}
+  <p class="lede">This page could not identify the device. Connect to {{ isp.name }} and open the Wi-Fi login page again.</p>
+  <a class="btn btn--secondary btn--block" href="/portal/{{ isp.slug }}/">Back to the login page</a>
+{% else %}
+  <p class="lede">Passes bought on this device.</p>
+
+  {% if grant %}
+    <div class="pass" style="margin:20px 0">
+      <div class="pass__row"><span>Current pass</span><span>{{ grant.package.name }}</span></div>
+      <div class="pass__row"><span>Time left</span><span>{{ grant.time_left_label }}</span></div>
+      <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
+      <div class="pass__row"><span>Status</span><span class="badge badge--ok">Active</span></div>
+    </div>
+    <a class="btn btn--primary btn--block" href="/portal/{{ isp.slug }}/packages/">Add more time</a>
+  {% else %}
+    <a class="btn btn--primary btn--block" style="margin:20px 0" href="/portal/{{ isp.slug }}/packages/">Buy a pass</a>
+  {% endif %}
+
+  {% if recent %}
+  <h2 style="font-size:1rem; margin-top:32px">History</h2>
+  <div class="pass">
+    {% for item in recent %}
+    <div class="pass__row">
+      <span>{{ item.started_at|date:"d M, H:i" }} · {{ item.package.name }}</span>
+      <span>{% if item.is_live %}Active{% else %}Ended{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

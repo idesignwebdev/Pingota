@@ -1,0 +1,99 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Request a panel - Pingota{% endblock %}
+{% block description %}Request a Pingota panel for your MikroTik hotspot. Every new network starts with a 24-hour trial and no card is required.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="wrap signup-layout">
+    <div class="signup-intro">
+      <h1>Request a panel</h1>
+      <p class="lede">Tell us about your network. A person reviews each request during support hours, 8am to 5pm, and replies to the email or phone number you give.</p>
+
+      <div class="alert alert--info" style="margin:24px 0">
+        <span class="alert__label">Trial</span>
+        Every new network starts with a 24-hour trial. No card is required.
+      </div>
+
+      <ol class="steps steps--compact" style="margin-top:8px">
+        <li class="step">
+          <span class="step__num">01</span>
+          <div><h3>We review the request</h3><p>We check the network name and contact details, then create your panel.</p></div>
+        </li>
+        <li class="step">
+          <span class="step__num">02</span>
+          <div><h3>You add a router</h3><p>Pingota generates the tunnel and one install block to paste into RouterOS.</p></div>
+        </li>
+        <li class="step">
+          <span class="step__num">03</span>
+          <div><h3>You sell the first pass</h3><p>Add your payment keys, publish a pass and test it with your own phone.</p></div>
+        </li>
+      </ol>
+
+      <p class="small">Questions? Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a>.</p>
+    </div>
+
+    <form method="post" class="card form-card stack-16" data-busy="Sending request">
+      {% csrf_token %}
+      <h2 style="font-size:1.15rem; margin-bottom:0">Network details</h2>
+
+      {% if error %}
+        <div class="alert alert--err" role="alert">
+          <span class="alert__label">Check the form</span>
+          {{ error }}
+        </div>
+      {% endif %}
+
+      <div class="field">
+        <label for="business_name">Network name</label>
+        <input id="business_name" name="business_name" type="text" required maxlength="120"
+               value="{{ form.business_name|default:'' }}" placeholder="Kondele Fibre">
+      </div>
+
+      <div class="grid-2" style="gap:16px">
+        <div class="field">
+          <label for="contact_name">Your name</label>
+          <input id="contact_name" name="contact_name" type="text" maxlength="120"
+                 value="{{ form.contact_name|default:'' }}" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="county">County or town</label>
+          <input id="county" name="county" type="text" maxlength="60"
+                 value="{{ form.county|default:'' }}" placeholder="Kisumu" autocomplete="address-level2">
+        </div>
+      </div>
+
+      <div class="grid-2" style="gap:16px">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" required
+                 value="{{ form.email|default:'' }}" placeholder="ops@yourisp.co.ke"
+                 autocomplete="email" aria-describedby="email-help">
+          <p class="help" id="email-help">This becomes your sign-in name.</p>
+        </div>
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" required
+                 value="{{ form.phone|default:'' }}" placeholder="0712 345 678"
+                 autocomplete="tel" aria-describedby="phone-help">
+          <p class="help" id="phone-help">Used for support and account questions.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="routers">Routers at the start</label>
+        <input id="routers" name="routers" type="number" min="1" max="500"
+               value="{{ form.routers|default:1 }}">
+      </div>
+
+      <div class="field">
+        <label for="note">Anything we should know</label>
+        <textarea id="note" name="note" rows="3" maxlength="400"
+                  placeholder="Estate hotspot, three access points, guests pay KES 20 for four hours.">{{ form.note|default:'' }}</textarea>
+      </div>
+
+      <button class="btn btn--primary btn--block" type="submit">Request a panel</button>
+      <p class="help" style="margin:0">No card is needed for the 24-hour trial.</p>
+    </form>
+  </div>
+</section>
+{% endblock %}

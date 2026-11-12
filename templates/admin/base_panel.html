@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+{% block body %}
+<div class="panel panel--workspace">
+  <div class="panel__bar">
+    <div class="wrap panel__bar-inner">
+      <a class="logo" href="/admin/">{% include "partials/logo.svg" %} Pingota</a>
+      <details class="nav-disclosure panel__nav-disclosure" open>
+        <summary class="nav-toggle nav-toggle--dark">Sections</summary>
+        <nav class="site-nav panel__nav" aria-label="Operator sections">
+          <a href="/admin/" {% if active_nav == "overview" %}aria-current="page"{% endif %}>Overview</a>
+          <a href="/admin/live/" {% if active_nav == "live" %}aria-current="page"{% endif %}>Live access</a>
+          <a href="/admin/customers/" {% if active_nav == "customers" %}aria-current="page"{% endif %}>Customers</a>
+          <a href="/admin/packages/" {% if active_nav == "packages" %}aria-current="page"{% endif %}>Passes</a>
+          <a href="/admin/vouchers/" {% if active_nav == "vouchers" %}aria-current="page"{% endif %}>Vouchers</a>
+          <a href="/admin/network/" {% if active_nav == "network" %}aria-current="page"{% endif %}>Network</a>
+          <a href="/admin/revenue/" {% if active_nav == "revenue" %}aria-current="page"{% endif %}>Revenue</a>
+          <a href="/admin/settings/" {% if active_nav == "settings" %}aria-current="page"{% endif %}>Settings</a>
+        </nav>
+      </details>
+      <div class="panel__account">
+        <a class="small" href="/admin/password-change/">{% if isp %}{{ isp.name }} · {% endif %}{{ request.user.get_username }}</a>
+        <form method="post" action="/admin/logout/" data-busy="Signing out">
+          {% csrf_token %}
+          <button class="btn btn--ghost btn--sm" type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <main class="panel__body" id="main">
+    <div class="wrap">
+      {% if messages %}
+        <div class="stack-8" style="margin-bottom:20px">
+          {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert--err{% elif message.tags == 'warning' %}alert--warn{% else %}alert--ok{% endif %}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block panel %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+  <h2 id="confirm-title">Confirm this action</h2>
+  <p id="confirm-message" data-confirm-message>This action cannot be undone.</p>
+  <div class="dialog__actions">
+    <button class="btn btn--secondary" type="button" data-confirm-cancel>Cancel</button>
+    <button class="btn btn--danger" type="button" data-confirm-accept>Continue</button>
+  </div>
+</dialog>
+{% endblock %}

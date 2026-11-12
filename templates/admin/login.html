@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Operator sign in - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:460px; padding-top:64px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card stack-16">
+    <div>
+      <h1 style="font-size:1.4rem; margin-bottom:4px">Operator sign in</h1>
+      <p class="small" style="margin:0">Manage passes, routers and payments for your network.</p>
+    </div>
+
+    {% if form.errors %}
+      <div class="alert alert--err" role="alert">
+        <span class="alert__label">Sign in failed</span>
+        The email, username or password does not match an operator account. Try again, or ask the platform owner to reset it.
+      </div>
+    {% endif %}
+
+    <form method="post" action="{{ request.path }}" class="stack-16" data-busy="Signing in">
+      {% csrf_token %}
+      <div>
+        <label for="id_username">Email or username</label>
+        <input id="id_username" name="username" type="text" autocomplete="username" required autofocus
+               value="{{ form.username.value|default:'' }}">
+      </div>
+      <div>
+        <label for="id_password">Password</label>
+        <input id="id_password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <input type="hidden" name="next" value="{{ next|default:'' }}">
+      <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <p class="small" style="text-align:center; margin-top:16px">
+    <a href="/">Back to Pingota</a>
+  </p>
+</main>
+{% endblock %}

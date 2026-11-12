@@ -1,0 +1,34 @@
+# Environment variables
+.env
+
+# Logs
+logs/
+*.log
+debug.log
+
+# Build and Cache
+dist/
+build/
+.cache/
+.out/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+# Python / Django
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+staticfiles/
+data/
+.env.db
+# Local QA artefacts
+.qa/
+qa-*.png

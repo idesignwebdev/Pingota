@@ -1,0 +1,103 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Documentation - Pingota{% endblock %}
+{% block description %}Install Pingota, connect a MikroTik router, add Paystack or M-Pesa, and run the hotspot day to day.{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="wrap">
+    <div class="docs-layout">
+      <nav class="docs-nav" aria-label="Documentation sections" data-scrollspy>
+        <p class="docs-nav__title">On this page</p>
+        <a href="#install">Install</a>
+        <a href="#router">MikroTik</a>
+        <a href="#payments">Payments</a>
+        <a href="#operations">Operations</a>
+      </nav>
+
+      <div class="docs-content">
+        <h1>Set up Pingota</h1>
+        <p class="lede">Three things get a network selling access: this server running, a router that dials in, and a payment account. Each can be tested on its own, so you can connect the router before you take a shilling.</p>
+
+        <section id="install" class="docs-section">
+          <h2>1. Deploy the server</h2>
+          <p>The recommended path is Docker Compose on a server with a domain name. Dokploy uses the same compose file.</p>
+          <ol class="steps steps--compact">
+            <li class="step">
+              <span class="step__num">01</span>
+              <div><h3>Create the environment file</h3><p>Copy <span class="mono">.env.example</span> to <span class="mono">.env</span>. Generate <span class="mono">DJANGO_SECRET_KEY</span> and <span class="mono">FIELD_ENCRYPTION_KEY</span> with the commands in the file.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">02</span>
+              <div><h3>Set the public address</h3><p>Set <span class="mono">PUBLIC_BASE_URL</span> to your domain and <span class="mono">ROUTER_TUNNEL_HOST</span> to the hostname routers will dial. Attach the domain to the web service on port 8000.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">03</span>
+              <div><h3>Start the stack</h3><p>The entrypoint runs migrations, collects static files and creates the platform owner from <span class="mono">ADMIN_USERNAME</span>.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">04</span>
+              <div><h3>Sign in</h3><p>Open <span class="mono">/admin/login/</span> with the platform owner account, then approve the first network request under <span class="mono">/django-admin/</span>.</p></div>
+            </li>
+          </ol>
+
+          <pre class="code-block"><code>cp .env.example .env
+docker compose up -d --build</code></pre>
+
+          <p style="margin-top:16px">No Docker? The full guide covers a virtual environment, <span class="mono">python manage.py migrate</span>, <span class="mono">python manage.py bootstrap</span> and <span class="mono">runserver</span>. Health check: <span class="mono">/healthz/</span> returns <span class="mono">ok</span>.</p>
+          <p><a href="https://github.com/idesignwebdev/Pingota/blob/main/docs/INSTALLATION.md">Read the installation guide</a></p>
+        </section>
+
+        <section id="router" class="docs-section">
+          <h2>2. Connect the MikroTik</h2>
+          <ol class="steps steps--compact">
+            <li class="step">
+              <span class="step__num">01</span>
+              <div><h3>Name the router</h3><p>Use the place it serves, such as Kondele gate, so the panel reads like your network.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">02</span>
+              <div><h3>Copy the install block</h3><p>It joins the router to TunGuard, creates a restricted API user and allows the API port only from Pingota's tunnel address.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">03</span>
+              <div><h3>Paste into New Terminal</h3><p>In WinBox or SSH, paste the whole block and press Enter. The router dials out, so CGNAT and a missing public IP do not matter.</p></div>
+            </li>
+            <li class="step">
+              <span class="step__num">04</span>
+              <div><h3>Wait for Connected</h3><p>The router reports its model and RouterOS version back to the panel. The block is safe to paste twice; nothing is duplicated.</p></div>
+            </li>
+          </ol>
+
+          <p>Point the hotspot login page at your portal. The capture page reads the device identity from the redirect:</p>
+          <pre class="code-block"><code>https://your-domain/portal/&lt;isp-slug&gt;/?mac=$(mac)&amp;link-login-only=$(link-login-only)</code></pre>
+          <p style="margin-top:16px">Without the redirect, a guest sees the prices but the payment buttons stay disabled. The full guide also shows the hotspot profile, walled-garden and bandwidth profile settings.</p>
+        </section>
+
+        <section id="payments" class="docs-section">
+          <h2>3. Connect payments</h2>
+          <div class="included-list">
+            <div class="included-item">
+              <h3>Paystack</h3>
+              <p>Add the secret and public keys, plus a subaccount code if you use one. Paste the webhook URL from Settings into the Paystack dashboard, then send a small test payment.</p>
+            </div>
+            <div class="included-item">
+              <h3>M-Pesa</h3>
+              <p>Add your shortcode, consumer key, consumer secret and Lipa na M-Pesa passkey. Register the callback URL shown in Settings with Daraja.</p>
+            </div>
+          </div>
+          <p style="margin-top:16px">The payment confirmation is verified before the router is touched. A failed or duplicate callback cannot open access twice.</p>
+        </section>
+
+        <section id="operations" class="docs-section">
+          <h2>4. Run it day to day</h2>
+          <p><strong>Live access</strong> shows every device with a valid pass. Add minutes, revoke a pass, or disconnect a session. A disconnect keeps the pass, so the guest can reconnect until the time runs out.</p>
+          <p><strong>Vouchers</strong> are generated in batches. Print the sheet, sell the codes at the counter, and void a batch if a sheet leaks. Each code works once.</p>
+          <p><strong>Fair use</strong> is read from router byte counters. When a pass reaches its data allowance, the device is moved to a slow profile or cut off, depending on the pass.</p>
+          <p><strong>The sweeper</strong> runs inside the web process. It expires grants, retries provisioning for paid grants whose router was down, and samples router health once a minute. To run it from cron instead, set <span class="mono">SCHEDULER_ENABLED=false</span> and run <span class="mono">python manage.py tick</span> every 30 seconds.</p>
+          <p><strong>Backups</strong> are the database dump plus the compose volume. Nothing else holds state. Take a dump before every upgrade because migrations are forward-only.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

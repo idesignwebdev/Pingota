@@ -1,0 +1,26 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Not completed - {{ isp.name|default:"Pingota" }}{% endblock %}
+
+{% block portal %}
+<div class="portal__lead">
+  <h1>That did not work</h1>
+</div>
+
+<div class="alert alert--err" role="alert" style="margin:20px 0">
+  <span class="alert__label">What happened</span>
+  {{ message|default:"The request could not be completed. Try again." }}
+</div>
+
+<div class="row" style="gap:8px; flex-wrap:wrap">
+  {% if isp %}
+    <a class="btn btn--primary" href="/portal/{{ isp.slug }}/packages/">Try again</a>
+    <a class="btn btn--secondary" href="/portal/{{ isp.slug }}/">Back to my pass</a>
+  {% else %}
+    <a class="btn btn--secondary" href="/">Back to Pingota</a>
+  {% endif %}
+</div>
+
+{% if isp.support_phone %}
+  <p class="small" style="margin-top:16px">If this keeps happening, call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.</p>
+{% endif %}
+{% endblock %}

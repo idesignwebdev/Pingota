@@ -1,0 +1,53 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Voucher sheet - {{ isp.name }}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <style>
+    body { background: var(--white); }
+    @media print {
+      .sheet__grid { grid-template-columns: repeat(4, 1fr); }
+      .sheet__head button { display: none; }
+      .ticket { break-inside: avoid; }
+      @page { margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+<div class="sheet">
+  <div class="sheet__head">
+    <div>
+      <h2 style="margin:0">{{ isp.name }} access vouchers</h2>
+      <div class="small muted">
+        {% if batch %}Batch {{ batch }} · {% endif %}{{ codes|length }} codes · printed {{ now|date:"d M Y" }}{% if not batch %} · all unused codes{% endif %}
+      </div>
+    </div>
+    <button class="btn btn--secondary btn--sm" type="button" onclick="window.print()">Print</button>
+  </div>
+
+  {% if codes %}
+  <div class="sheet__grid">
+    {% for voucher in codes %}
+    <div class="ticket">
+      <div class="ticket__brand">{{ isp.name }}</div>
+      <div>
+        <div class="ticket__code">{{ voucher.code }}</div>
+        <div class="ticket__meta">{{ voucher.package.duration_label }}</div>
+      </div>
+      <div class="ticket__meta">Enter on the Wi-Fi page{% if voucher.expires_on %} before {{ voucher.expires_on|date:"d M Y" }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="sheet__note">
+    Each code works once, on the first device that redeems it. Codes are case-insensitive; the dash may be omitted.
+  </p>
+  {% else %}
+  <div class="empty">
+    <h3>No unused codes in this batch</h3>
+    <p class="small" style="margin:0">Generate a new batch or choose another batch to print.</p>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

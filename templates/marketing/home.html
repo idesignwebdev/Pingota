@@ -1,0 +1,117 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Pingota - hotspot billing for MikroTik networks{% endblock %}
+{% block description %}Sell Wi-Fi passes on MikroTik. Guests pay by card, bank or M-Pesa and the router opens the connection. 24-hour trial, no card required.{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div>
+      <h1>Simple, Fast and Straightforward as it is.</h1>
+      <p class="lede">Pingota is the billing layer for MikroTik hotspots. Your customers picks a package on the captive portal, pays by card, bank or M-Pesa, and gets online.</p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="/signup/">Start a 24-hour trial</a>
+        <a class="btn btn--secondary" href="/docs/">Read the setup guide</a>
+      </div>
+      <p class="hero__note">No card for the trial. Support is 8am to 5pm at <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a>.</p>
+    </div>
+
+    <div class="flow" role="group" aria-label="How a guest gets online">
+      <div class="flow__step">
+        <span class="flow__num">1</span>
+        <div><strong>Your customer connects</strong><p>The hotspot opens your captive portal page on the phone.</p></div>
+      </div>
+      <div class="flow__step">
+        <span class="flow__num">2</span>
+        <div><strong>Your customer picks a package</strong><p>You decide the prices, durations and speed limits.</p></div>
+      </div>
+      <div class="flow__step">
+        <span class="flow__num">3</span>
+        <div><strong>Payment is confirmed</strong><p>Paystack or M-Pesa confirms the payment.</p></div>
+      </div>
+      <div class="flow__step">
+        <span class="flow__num">4</span>
+        <div><strong>The router opens access</strong><p>Pingota adds a hotspot user with the pass duration and speed profile.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="platform">
+  <div class="wrap">
+    <div class="section__head">
+      <h2>Monitoring and management panel</h2>
+    </div>
+
+    <div class="feature-lead">
+      <div class="card card--lead">
+        <h3>Live access</h3>
+        <p>Every active pass in one list, with the device, package, router and time left. You can add time, revoke a pass, or disconnect a session while keeping the pass for a reconnect.</p>
+        <ul class="check-list">
+          <li>Add minutes to a pass without asking the guest to pay again.</li>
+          <li>Revoke a pass when a device is shared or abused.</li>
+          <li>Disconnect one device without touching the rest of the network.</li>
+          <li>See which router carries each pass.</li>
+        </ul>
+      </div>
+      <div class="feature-lead__side">
+        <div class="card">
+          <h3>Speed and data per pass</h3>
+          <p>Each pass can carry a download and upload limit, an optional data allowance, and a slow profile for fair use. The router applies the limit and keeps it across reconnects.</p>
+        </div>
+        <div class="card">
+          <h3>Router health, not guesses</h3>
+          <p>Pingota samples CPU, uptime, latency and the online count once a minute. A router that stops answering is marked unreachable and the event log keeps the record.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="network">
+  <div class="wrap">
+    <div class="section__head">
+      <h2>Our Key Features</h2>
+    </div>
+
+    <div class="included-list">
+      <div class="included-item">
+        <h3>Paystack or M-Pesa</h3>
+        <p>Card, bank and mobile money through Paystack, or a Safaricom Daraja prompt to your own shortcode.</p>
+      </div>
+      <div class="included-item">
+        <h3>Self-service router onboarding</h3>
+        <p>Add a router and copy one generated block into RouterOS on your mikrotik router that sets it up.</p>
+      </div>
+      <div class="included-item">
+        <h3>Hourly, daily and monthly packages</h3>
+        <p>Sell a hourly, daily or monthly package for flexible use. Each package carries its own duration, speed and device limit.</p>
+      </div>
+      <div class="included-item">
+        <h3>Vouchers</h3>
+        <p>An easy way to give make up for inconvenience and give offers.</p>
+      </div>
+      <div class="included-item">
+        <h3>Captive portal</h3>
+        <p>It's lightweight and opens up in seconds.</p>
+      </div>
+      <div class="included-item">
+        <h3>An event log</h3>
+        <p>Connections, expiries, extensions, voucher redemptions and router errors are recorded with a time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap cta-band__inner">
+    <div>
+      <h2>Start your free trial</h2>
+      <p>Request a panel and add your router. The trial lasts 24 hours and needs no card.</p>
+    </div>
+    <div class="cta-band__actions">
+      <a class="btn btn--primary" href="/signup/">Request a panel</a>
+      <a class="btn btn--secondary" href="/pricing/">See pricing</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

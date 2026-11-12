@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="logo" href="/">{% include "partials/logo.svg" %} Pingota</a>
+    <details class="nav-disclosure" open>
+      <summary class="nav-toggle">Menu</summary>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#platform" {% if request.path == "/" %}aria-current="page"{% endif %}>Platform</a>
+        <a href="/#network">Features</a>
+        <a href="/pricing/" {% if request.path == "/pricing/" %}aria-current="page"{% endif %}>Pricing</a>
+        <a href="/docs/" {% if request.path == "/docs/" %}aria-current="page"{% endif %}>Docs</a>
+      </nav>
+    </details>
+    <div class="site-header__actions">
+      <a class="btn btn--secondary btn--sm" href="/admin/login/">Sign in</a>
+      <a class="btn btn--primary btn--sm" href="/signup/">Request a panel</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-brand">
+      <div class="logo">{% include "partials/logo.svg" %} Pingota</div>
+      <p class="small">A Reliable Hotspot billing for MikroTik networks.</p>
+      <p class="small">Support 8am to 5pm. <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a></p>
+      <p class="small">© {{ year }} Pingota. Source under the <a href="https://github.com/idesignwebdev/Pingota">MIT licence</a>.</p>
+    </div>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="/pricing/">Pricing</a>
+      <a href="/docs/">Documentation</a>
+      <a href="mailto:idesignweb.co.ke@gmail.com">Contact</a>
+      <a href="/admin/login/">Operator sign in</a>
+      <a href="https://github.com/idesignwebdev/Pingota">Source</a>
+    </nav>
+  </div>
+</footer>
+{% endblock %}

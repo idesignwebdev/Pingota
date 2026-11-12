@@ -1,0 +1,33 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}{{ isp.name }} - internet access{% endblock %}
+
+{% block portal %}
+{% if live %}
+  <div class="portal__lead">
+    <h1>You are online</h1>
+    <p class="lede">Your pass is active on this device.</p>
+  </div>
+
+  <div class="pass" style="margin:20px 0">
+    <div class="pass__row"><span>Pass</span><span>{{ live.package.name }}</span></div>
+    <div class="pass__row"><span>Time left</span><span>{{ live.time_left_label }}</span></div>
+    <div class="pass__row"><span>Ends</span><span>{{ live.expires_at|date:"d M, H:i" }}</span></div>
+  </div>
+
+  <p class="status-note">Access ends on the router at the time shown. You can add time before it runs out.</p>
+
+  <div class="row" style="gap:8px; margin-top:20px; flex-wrap:wrap">
+    <a class="btn btn--primary" href="/portal/{{ isp.slug }}/packages/">Add time</a>
+    <a class="btn btn--secondary" href="/portal/{{ isp.slug }}/pass/">My passes</a>
+  </div>
+{% else %}
+  <div class="portal__lead">
+    <h1>Get online</h1>
+    <p class="lede">Choose a pass and pay from your phone. Access starts when the payment is confirmed.</p>
+  </div>
+
+  <div style="margin-top:24px">
+    {% include "portal/_packages.html" %}
+  </div>
+{% endif %}
+{% endblock %}

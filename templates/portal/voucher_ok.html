@@ -1,0 +1,26 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Voucher accepted - {{ isp.name }}{% endblock %}
+
+{% block portal %}
+<div class="portal__lead">
+  <h1>Voucher accepted</h1>
+  <p class="lede">{{ voucher.package.name }} is now on this device.</p>
+</div>
+
+<div class="pass" style="margin:20px 0">
+  <div class="pass__row"><span>Code</span><span class="mono">{{ voucher.code }}</span></div>
+  <div class="pass__row"><span>Pass</span><span>{{ voucher.package.name }}</span></div>
+  <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
+</div>
+
+{% if grant.revoked_reason == "waiting for router" %}
+  <div class="alert alert--warn" role="status">
+    <span class="alert__label">Still activating</span>
+    The code is spent and your pass is saved, but the router has not confirmed it yet. Open a website in a minute. If it still fails,
+    {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the code above.{% else %}show the code above to the operator.{% endif %}
+  </div>
+{% else %}
+  <p class="status-note">Your pass is active. Close this page and open any website to start browsing.</p>
+  <a class="btn btn--secondary btn--block" style="margin-top:20px" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
+{% endif %}
+{% endblock %}

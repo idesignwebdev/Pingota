@@ -1,0 +1,111 @@
+{% extends "portal/base_portal.html" %}
+{% load static %}
+{% block title %}Payment status - {{ isp.name }}{% endblock %}
+
+{% block portal %}
+{% if payment.status == "paid" and grant.is_live %}
+  <div class="portal__lead">
+    <h1>You are online</h1>
+    <p class="lede">{{ grant.package.name }} is active on this device.</p>
+  </div>
+
+  <div class="pass" style="margin:20px 0">
+    <div class="pass__row"><span>Pass</span><span>{{ grant.package.name }}</span></div>
+    <div class="pass__row"><span>Time left</span><span>{{ grant.time_left_label }}</span></div>
+    <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
+  </div>
+
+  <p class="status-note">Close this page and open any website to start browsing. Access ends on the router at the time shown.</p>
+  <a class="btn btn--secondary btn--block" style="margin-top:20px" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
+
+{% elif payment.status == "paid" and grant %}
+  <div class="portal__lead">
+    <h1>This pass has ended</h1>
+    <p class="lede">{{ grant.package.name }} ended on {{ grant.expires_at|date:"d M, H:i" }}.</p>
+  </div>
+
+  <div class="row" style="gap:8px; margin-top:20px; flex-wrap:wrap">
+    <a class="btn btn--primary" href="/portal/{{ isp.slug }}/packages/">Buy another pass</a>
+    <a class="btn btn--secondary" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
+  </div>
+
+{% elif payment.status == "paid" %}
+  <div id="status-root" data-state-url="/portal/{{ isp.slug }}/status/{{ payment.reference }}/state/">
+    <div class="portal__lead">
+      <h1>Payment received</h1>
+      <p class="lede">Your pass is being activated on the router. This usually takes a few seconds.</p>
+    </div>
+
+    <div class="pass" style="margin:20px 0">
+      <div class="pass__row"><span>Amount</span><span>{{ isp.currency }} {{ payment.amount|floatformat:0 }}</span></div>
+      <div class="pass__row"><span>Status</span><span id="state-label">Waiting for the router</span></div>
+    </div>
+
+    <p class="status-note" data-poll-note aria-live="polite">Checking automatically. Keep this page open.</p>
+    <button class="btn btn--secondary btn--block" style="margin-top:12px" type="button" data-poll-retry hidden>Check again</button>
+    <noscript><p class="status-note">Reload this page to check again.</p></noscript>
+
+    <p class="small" style="margin-top:16px">
+      If the status does not change after a minute,
+      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the support code below.
+      {% else %}ask the operator at the counter and give the support code below.{% endif %}
+    </p>
+    <details class="event-detail">
+      <summary>Support code</summary>
+      <p class="mono">{{ payment.reference }}</p>
+    </details>
+  </div>
+
+{% elif payment.status == "failed" %}
+  <div class="portal__lead">
+    <h1>Payment did not go through</h1>
+    <p class="lede">The payment was cancelled or declined. Nothing has been charged to your account.</p>
+  </div>
+
+  <div class="row" style="gap:8px; margin-top:20px; flex-wrap:wrap">
+    <a class="btn btn--primary" href="/portal/{{ isp.slug }}/packages/">Try again</a>
+    <a class="btn btn--secondary" href="/portal/{{ isp.slug }}/">Back to my pass</a>
+  </div>
+
+  {% if isp.support_phone %}
+    <p class="small" style="margin-top:16px">Still stuck? Call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.</p>
+  {% endif %}
+
+{% else %}
+  <div id="status-root" data-state-url="/portal/{{ isp.slug }}/status/{{ payment.reference }}/state/">
+    <div class="portal__lead">
+      <h1>Confirm the payment</h1>
+      <p class="lede">
+        {% if payment.provider == "mpesa" %}
+          Approve the M-Pesa prompt on your phone. This page updates when the confirmation arrives.
+        {% else %}
+          Finish the card payment in the window that opened. This page updates when the confirmation arrives.
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="pass" style="margin:20px 0">
+      <div class="pass__row"><span>Amount</span><span>{{ isp.currency }} {{ payment.amount|floatformat:0 }}</span></div>
+      <div class="pass__row"><span>Status</span><span id="state-label">Waiting for confirmation</span></div>
+    </div>
+
+    <p class="status-note" data-poll-note aria-live="polite">Checking automatically. Keep this page open.</p>
+    <button class="btn btn--secondary btn--block" style="margin-top:12px" type="button" data-poll-retry hidden>Check again</button>
+    <noscript><p class="status-note">Reload this page to check again.</p></noscript>
+
+    <p class="small" style="margin-top:16px">
+      If the payment does not confirm,
+      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.
+      {% else %}ask the operator at the counter.{% endif %}
+    </p>
+    <details class="event-detail">
+      <summary>Support code</summary>
+      <p class="mono">{{ payment.reference }}</p>
+    </details>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/portal.js' %}" defer></script>
+{% endblock %}

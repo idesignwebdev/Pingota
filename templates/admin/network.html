@@ -1,0 +1,78 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Network - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Network</h1>
+    <p class="muted">Health is sampled once a minute. A gap means the router stopped answering.</p>
+  </div>
+  <form method="post" action="{% url 'panel:router_add' %}" class="filters" data-busy="Adding router">
+    {% csrf_token %}
+    <label class="sr-only" for="router-name">Name of the new router</label>
+    <input id="router-name" name="name" type="text" required maxlength="80" placeholder="Where this router serves">
+    <button class="btn btn--primary btn--sm" type="submit">Add router</button>
+  </form>
+</div>
+
+{% if cards %}
+<div class="grid-2">
+  {% for card in cards %}
+  <div class="card">
+    <div class="row-between">
+      <div>
+        <h3 style="margin:0"><a href="{% url 'panel:router_detail' card.router.id %}">{{ card.router.name }}</a></h3>
+        <p class="small mono" style="margin:4px 0 0">{{ card.router.tunnel_address|default:"No tunnel address" }}{% if card.router.routeros_version %} · RouterOS {{ card.router.routeros_version }}{% endif %}</p>
+      </div>
+      <span class="badge {{ card.router.health_badge_class }}">{{ card.router.health_label }}</span>
+    </div>
+
+    <div class="row" style="gap:32px; margin:16px 0 4px">
+      <div class="stat">
+        <span class="stat__value">{% if card.latest %}{{ card.latest.online_users }}{% else %}-{% endif %}</span>
+        <span class="stat__label">Online users</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{% if card.latest and card.latest.reachable %}{{ card.latest.cpu_percent }}%{% else %}-{% endif %}</span>
+        <span class="stat__label">CPU load</span>
+      </div>
+      <div class="stat">
+        <span class="stat__value">{% if card.latest and card.latest.reachable %}{{ card.latest.latency_ms }} ms{% else %}-{% endif %}</span>
+        <span class="stat__label">Probe latency</span>
+      </div>
+    </div>
+
+    <div class="spark" aria-hidden="true">
+      {% for point in card.spark %}
+        <div class="{% if not point.reachable %}is-down{% endif %}" style="height:{% if point.reachable %}100%{% else %}35%{% endif %}"></div>
+      {% endfor %}
+    </div>
+    <p class="small" style="margin-top:8px">
+      {% if card.latest %}Last sample {{ card.latest.recorded_at|timesince }} ago{% else %}No samples yet{% endif %}
+      {% if card.router.last_status and card.router.last_status != "online" %}
+        <details class="event-detail">
+          <summary>Last check details</summary>
+          <span class="mono">{{ card.router.last_status }}</span>
+        </details>
+      {% endif %}
+    </p>
+
+    <div class="row" style="gap:8px; margin-top:12px; flex-wrap:wrap">
+      <a class="btn btn--secondary btn--sm" href="{% url 'panel:router_detail' card.router.id %}">Open install page</a>
+      <form method="post" action="{% url 'panel:test_router' card.router.id %}" data-busy="Testing connection">
+        {% csrf_token %}
+        <button class="btn btn--quiet btn--sm" type="submit">Test connection</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <h3>No router connected</h3>
+    <p class="small">Add one above and Pingota generates the tunnel, the API user and one script to paste into RouterOS. The router dials out, so CGNAT works without port forwarding.</p>
+    <a class="btn btn--secondary btn--sm" href="/docs/#router">How onboarding works</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
