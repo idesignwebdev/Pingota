@@ -16,7 +16,7 @@ from django.db import models
 
 from core.models import UUIDModel
 
-#: Every router gets a /24 out of this range for its tunnel peer address.
+#: Router addresses are allocated from the shared TunGuard tunnel subnet.
 TUNNEL_SUBNET = settings.ROUTER_TUNNEL_SUBNET
 
 

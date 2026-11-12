@@ -73,35 +73,67 @@ proxy must:
 
 ---
 
-## 3. The router tunnel
+## 3. Install TunGuard on the Docker host
 
-Pingota uses TunGuard so it can add each router to the live tunnel as soon as an operator creates it.
-Install TunGuard on the same VPS as Docker, following the [TunGuard installation guide](https://tunguard.github.io/docs/).
-Its installer is also documented in the [TunGuard repository](https://github.com/TunGuard/tanguard-binary).
+Pingota calls TunGuard's API to register each router and sends the router's WireGuard traffic to
+TunGuard. Run TunGuard as a Linux service on the same VPS that runs Dokploy; keep Pingota in the
+Dokploy Compose deployment. TunGuard's supported setup is its Linux binary, not another Compose
+service. Install it using the [official TunGuard guide](https://tunguard.github.io/docs/) and
+[installer](https://github.com/TunGuard/tanguard-binary).
 
-Configure TunGuard with:
+Set these environment variables on the TunGuard `tanguard` systemd service (for example, with
+`sudo systemctl edit tanguard`), then restart it:
 
+```ini
+[Service]
+Environment="WG_ADDRESS=10.70.0.1/16"
+Environment="WG_SUBNET=10.70.0.0/16"
+Environment="WG_LISTEN_PORT=13231"
+Environment="API_LISTEN=:9000"
 ```
-WG_ADDRESS=10.70.0.1/16
-WG_SUBNET=10.70.0.0/16
-WG_LISTEN_PORT=13231
-API_LISTEN=:9000
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart tanguard
+sudo systemctl status tanguard
 ```
 
-Allow UDP **13231** from the internet. Keep TunGuard's API on TCP **9000** private; the Pingota web
-container reaches the host at `host.docker.internal:9000`. In TunGuard's dashboard, create an API key
-with peer write access and set `TUNGARD_API_KEY` in Pingota's environment. Set:
+Change the default TunGuard dashboard login on first sign-in. In **Settings → API Key**, create an
+API key. Pingota uses this key for the peer add/remove API calls.
 
-```
-ROUTER_TUNNEL_HOST=vpn.yourdomain.example   # public DNS name for this VPS
+### Network and subnet
+
+Keep the defaults below unless you have a reason to change them. The subnet is an ordinary private
+IPv4 CIDR, but it must be the **same pool in TunGuard and Pingota**, and it must not overlap the
+VPS's LAN, the Docker networks, or networks behind the customer routers. `/16` provides roughly
+65,000 usable addresses; `.1` is reserved for TunGuard and Pingota assigns the remaining addresses
+to routers. The prefix can be changed (for example to `/24` for about 250 routers), but change all
+three subnet values together and leave `.1` for the server. The routers' own hotspot/LAN subnet is
+separate and may be different for each site; it should not overlap this tunnel pool.
+
+Open **UDP 13231** on the VPS firewall/security group for router connections. Do not expose TunGuard's
+**TCP 9000** API/dashboard to the public internet. Pingota's container reaches it through the Docker
+host gateway configured in Compose.
+
+Set these variables in Pingota's Dokploy environment:
+
+```dotenv
+ROUTER_TUNNEL_HOST=vpn.yourdomain.example
 ROUTER_TUNNEL_PORT=13231
 ROUTER_TUNNEL_SUBNET=10.70.0.0/16
 TUNGARD_API_URL=http://host.docker.internal:9000
+TUNGARD_API_KEY=<key from TunGuard Settings → API Key>
 ```
 
-The Docker host must route `10.70.0.0/16` through TunGuard and allow the Pingota Docker network to
-reach router peers over TCP **8728**. TunGuard assigns each router a unique address in this subnet;
-the install script uses the same reserved address and keys that Pingota registered with TunGuard.
+Also set `PUBLIC_BASE_URL` to Pingota's HTTPS URL, and set `MONGODB_URI` to a MongoDB address
+reachable **from the Pingota container**. `localhost` inside that container means the container
+itself; use the Compose service name for bundled Mongo (`mongodb://mongo:27017`) or a host-reachable
+address for Mongo running elsewhere.
+
+For router management to work end to end, the host and Docker network must pass traffic to the
+tunnel subnet, and Pingota must be able to reach connected routers over TCP **8728**. The router
+onboarding script configures the corresponding tunnel address and allows the API only from
+TunGuard's `.1` address.
 
 ---
 
