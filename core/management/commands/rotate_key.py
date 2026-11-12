@@ -25,13 +25,12 @@ from django.db import transaction
 from core.crypto import decrypt_with, encrypt_with, validate_key
 
 #: (model path, [(field, whether it is stored encrypted)]).
-#: Router's tunnel key column is deliberately absent: it is never used to dial
-#: back in, so re-encrypting it would only add risk.
+#: TunGuard owns the server tunnel key; Pingota only re-encrypts its own stored
+#: router and payment credentials.
 TARGETS = [
     ("apps.tenants.models.Router", ["api_password", "tunnel_private_key"]),
     ("apps.tenants.models.PaystackConfig", ["secret_key"]),
     ("apps.tenants.models.MpesaConfig", ["consumer_secret", "passkey"]),
-    ("apps.tenants.models.PlatformKeys", ["server_private_key"]),
 ]
 
 
