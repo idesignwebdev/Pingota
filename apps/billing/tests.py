@@ -131,6 +131,20 @@ class OnboardingTests(TestCase):
             addresses.append(router.tunnel_address)
         self.assertEqual(len(set(addresses)), 3)
 
+    def test_regeneration_keeps_router_api_username_stable(self):
+        from apps.network import onboarding
+
+        router = Router(isp=self.isp, name="AP1")
+        onboarding.provision_identity(router)
+        original_user = router.api_user
+        original_address = router.tunnel_address
+        router.save()
+
+        onboarding.provision_identity(router)
+
+        self.assertEqual(router.api_user, original_user)
+        self.assertNotEqual(router.tunnel_address, original_address)
+
     @mock.patch("apps.web.onboarding_views.mikrotik.health")
     def test_report_marks_router_connected(self, _router_health):
         from apps.network import onboarding

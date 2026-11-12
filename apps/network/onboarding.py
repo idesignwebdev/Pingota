@@ -72,7 +72,8 @@ def provision_identity(router) -> None:
     private_key, public_key = new_x25519()
     router.tunnel_public_key = public_key
     router.set_tunnel_private_key(private_key)
-    router.api_user = f"pingota-{secrets.token_hex(2)}"
+    if not router.api_user or router.api_user == "pingota":
+        router.api_user = f"pingota-{secrets.token_hex(2)}"
     router.api_password = encrypt(secrets.token_urlsafe(24))
     router.install_token = secrets.token_urlsafe(32)
     router.tunnel_address = allocate_tunnel_address()
