@@ -11,7 +11,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.network.models import Package, Voucher
 from apps.network.vouchers import VoucherError, generate as generate_codes
-from apps.web.admin_views import current_isp, panel_required
+from apps.web.admin_views import current_isp, panel_required, staff_required
 
 
 @panel_required
@@ -55,7 +55,7 @@ def list_batches(request):
     )
 
 
-@panel_required
+@staff_required
 def generate(request):
     isp = current_isp(request)
     packages_qs = isp.packages.filter(is_active=True)
@@ -86,7 +86,7 @@ def generate(request):
     )
 
 
-@panel_required
+@staff_required
 @require_POST
 def void(request, voucher_id):
     isp = current_isp(request)

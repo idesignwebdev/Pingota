@@ -13,7 +13,7 @@
   {% if grants %}
   <table>
     <thead>
-      <tr><th scope="col">Device</th><th scope="col">Pass</th><th scope="col">Router</th><th scope="col" class="num">Time left</th><th scope="col">Actions</th></tr>
+      <tr><th scope="col">Device</th><th scope="col">Pass</th><th scope="col">Router</th><th scope="col" class="num">Time left</th>{% if request.membership.role != "readonly" %}<th scope="col">Actions</th>{% endif %}</tr>
     </thead>
     <tbody>
       {% for grant in grants %}
@@ -28,6 +28,7 @@
         </td>
         <td class="small">{{ grant.router.name|default:"Not assigned" }}</td>
         <td class="num mono">{{ grant.time_left_label }}</td>
+        {% if request.membership.role != "readonly" %}
         <td>
           <div class="row" style="gap:8px; flex-wrap:wrap">
             <form method="post" action="{% url 'panel:extend_grant' grant.id %}"
@@ -46,6 +47,7 @@
             </form>
           </div>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -53,7 +55,7 @@
   {% else %}
   <div style="padding:20px">
     <div class="empty">
-      <h3>No active passes</h3>
+      <h3>No active packages</h3>
       <p class="small" style="margin:0">When someone pays on the capture page, the device appears here within a second or two. If you expect traffic, check the event log for router errors.</p>
     </div>
   </div>
@@ -73,7 +75,7 @@
 
   {% if devices %}
   <table style="margin-top:12px">
-    <thead><tr><th scope="col">MAC</th><th scope="col">IP</th><th scope="col">Hotspot user</th><th scope="col">Uptime</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th scope="col">MAC</th><th scope="col">IP</th><th scope="col">Hotspot user</th><th scope="col">Uptime</th>{% if request.membership.role != "readonly" %}<th scope="col"><span class="sr-only">Actions</span></th>{% endif %}</tr></thead>
     <tbody>
       {% for device in devices %}
       <tr>
@@ -81,6 +83,7 @@
         <td class="mono">{{ device.ip }}</td>
         <td class="mono">{{ device.user }}</td>
         <td>{{ device.uptime }}</td>
+        {% if request.membership.role != "readonly" %}
         <td>
           <form method="post" action="{% url 'panel:disconnect_device' %}"
                 data-confirm="Disconnect this device now? The pass stays valid, so the guest can reconnect."
@@ -90,6 +93,7 @@
             <button class="btn btn--quiet btn--sm" type="submit">Disconnect</button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>

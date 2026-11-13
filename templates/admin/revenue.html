@@ -29,7 +29,7 @@
       <p class="small" style="margin:8px 0 0">M-Pesa is live for STK prompts to till {{ mpesa_till }}.</p>
     {% endif %}
     {% if not paystack and not mpesa or not paystack.enabled and not mpesa.enabled %}
-      <p class="small" style="margin:0">No payment provider is live yet. Add keys in <a href="{% url 'panel:settings' %}">Settings</a> before sharing the capture page.</p>
+      <p class="small" style="margin:0">No payment provider is live yet. {% if request.membership.role == "owner" %}Add keys in <a href="{% url 'panel:settings' %}">Settings</a> before sharing the capture page.{% else %}Ask an owner to add payment keys before sharing the capture page.{% endif %}</p>
     {% endif %}
   </div>
 </div>

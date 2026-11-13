@@ -15,10 +15,13 @@ from functools import wraps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.network import mikrotik
@@ -28,12 +31,23 @@ from apps.network.provisioning import revoke_grant
 log = logging.getLogger(__name__)
 
 
-def current_isp(request):
-    """The signed-in operator's ISP. Membership is the only source of truth."""
-    membership = getattr(request.user, "membership", None)
+#: Higher roles include the permissions of the roles below them.
+ROLE_RANK = {"readonly": 0, "staff": 1, "owner": 2}
+
+
+def current_membership(request):
+    """The signed-in operator's membership. It is the only source of tenant."""
+    membership = getattr(request, "membership", None)
+    if membership is None:
+        membership = getattr(request.user, "membership", None)
     if membership is None:
         raise Http404("This account is not attached to a network. Ask the platform owner to invite it.")
-    return membership.isp
+    return membership
+
+
+def current_isp(request):
+    """The signed-in operator's ISP. Membership is the only source of truth."""
+    return current_membership(request).isp
 
 
 def panel_required(view):
@@ -47,6 +61,7 @@ def panel_required(view):
     @login_required
     def wrapper(request, *args, **kwargs):
         membership = getattr(request.user, "membership", None)
+        request.membership = membership
         if membership is None:
             if request.user.is_superuser:
                 return redirect("/django-admin/")
@@ -56,6 +71,26 @@ def panel_required(view):
         return view(request, *args, **kwargs)
 
     return wrapper
+
+
+def role_required(minimum: str):
+    """Require at least ``minimum`` within the current ISP."""
+
+    def decorator(view):
+        @wraps(view)
+        @panel_required
+        def wrapper(request, *args, **kwargs):
+            if ROLE_RANK.get(request.membership.role, -1) < ROLE_RANK[minimum]:
+                raise PermissionDenied("Your role cannot make this change.")
+            return view(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+staff_required = role_required("staff")
+owner_required = role_required("owner")
 
 
 def platform_only(request):
@@ -216,7 +251,7 @@ def packages(request):
     return render(request, "admin/packages.html", {"active_nav": "packages", "isp": isp, "items": items})
 
 
-@panel_required
+@staff_required
 def package_form(request, package_id=None):
     isp = current_isp(request)
     package = get_object_or_404(Package, pk=package_id, isp=isp) if package_id else None
@@ -294,7 +329,7 @@ def revenue(request):
     )
 
 
-@panel_required
+@owner_required
 def settings_view(request):
     isp = current_isp(request)
     if request.method == "POST":
@@ -314,6 +349,8 @@ def settings_view(request):
             cfg.enabled = request.POST.get("enabled") == "on"
             if request.POST.get("secret_key"):
                 cfg.set_secret(request.POST["secret_key"].strip())
+            if request.POST.get("webhook_secret"):
+                cfg.set_webhook_secret(request.POST["webhook_secret"].strip())
             cfg.save()
             messages.success(request, "Paystack settings saved")
         elif section == "mpesa":
@@ -350,6 +387,7 @@ def settings_view(request):
             messages.success(request, "Router saved")
         return redirect("panel:settings")
 
+    paystack_cfg = getattr(isp, "paystack", None)
     return render(
         request,
         "admin/settings.html",
@@ -357,8 +395,11 @@ def settings_view(request):
             "active_nav": "settings",
             "isp": isp,
             "routers": isp.routers.all(),
-            "paystack": getattr(isp, "paystack", None),
+            "paystack": paystack_cfg,
             "mpesa": getattr(isp, "mpesa", None),
+            "webhook_secret_ready": bool(
+                (paystack_cfg and paystack_cfg.webhook_secret) or settings.PAYSTACK_WEBHOOK_SECRET
+            ),
             "webhook_url": f"{settings.PUBLIC_BASE_URL}/payments/webhook/paystack/{isp.slug}/",
             "mpesa_callback_url": f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{isp.slug}/",
         },
@@ -366,7 +407,7 @@ def settings_view(request):
 
 
 # --- actions ---------------------------------------------------------------
-@panel_required
+@staff_required
 @require_POST
 def extend_grant(request, grant_id):
     isp = current_isp(request)
@@ -399,7 +440,7 @@ def extend_grant(request, grant_id):
     return redirect("panel:live")
 
 
-@panel_required
+@staff_required
 @require_POST
 def revoke_grant_view(request, grant_id):
     isp = current_isp(request)
@@ -409,7 +450,7 @@ def revoke_grant_view(request, grant_id):
     return redirect("panel:live")
 
 
-@panel_required
+@staff_required
 @require_POST
 def test_router(request, router_id):
     from apps.tenants.models import Router
@@ -430,10 +471,18 @@ def test_router(request, router_id):
             request,
             "The router did not answer. Check that it is powered on and connected, then try again.",
         )
-    return redirect("panel:settings")
+    # Staff can test from Network, where Settings is not available to them.
+    next_url = request.POST.get("next") or ""
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = reverse("panel:network")
+    return redirect(next_url)
 
 
-@panel_required
+@staff_required
 @require_POST
 def disconnect_device(request):
     isp = current_isp(request)

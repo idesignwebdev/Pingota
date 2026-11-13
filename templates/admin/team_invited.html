@@ -1,0 +1,26 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Login created - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Login created</h1>
+    <p class="muted">Give these details to {{ email }}. The password is shown once and is not emailed.</p>
+  </div>
+</div>
+
+<div class="card stack-16" style="max-width:560px">
+  <div>
+    <label for="created-email">Sign-in email</label>
+    <input id="created-email" type="text" value="{{ email }}" readonly>
+  </div>
+  <div>
+    <label for="created-password">Temporary password</label>
+    <input id="created-password" type="text" class="mono" value="{{ password }}" readonly>
+    <p class="help">They can change it under Account after signing in, and should do so before sharing this device.</p>
+  </div>
+  <div class="row" style="gap:8px; flex-wrap:wrap">
+    <a class="btn btn--primary" href="{% url 'panel:team' %}">Back to team</a>
+    <a class="btn btn--secondary" href="/admin/login/">Open sign in</a>
+  </div>
+</div>
+{% endblock %}

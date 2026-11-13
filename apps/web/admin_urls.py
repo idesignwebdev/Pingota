@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.web import admin_views, onboarding_views, voucher_views
+from apps.web import admin_views, onboarding_views, team_views, voucher_views
 
 app_name = "panel"
 
@@ -14,6 +14,11 @@ urlpatterns = [
     path("admin/packages/<uuid:package_id>/", admin_views.package_form, name="package_edit"),
     path("admin/revenue/", admin_views.revenue, name="revenue"),
     path("admin/settings/", admin_views.settings_view, name="settings"),
+    # Team (owner only)
+    path("admin/team/", team_views.team, name="team"),
+    path("admin/team/invite/", team_views.invite, name="team_invite"),
+    path("admin/team/<uuid:member_id>/role/", team_views.set_role, name="team_role"),
+    path("admin/team/<uuid:member_id>/remove/", team_views.remove, name="team_remove"),
     # Actions
     path("admin/actions/grant/<uuid:grant_id>/extend/", admin_views.extend_grant, name="extend_grant"),
     path("admin/actions/grant/<uuid:grant_id>/revoke/", admin_views.revoke_grant_view, name="revoke_grant"),

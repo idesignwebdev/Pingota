@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
                 ('download_kbps', models.IntegerField(default=0, help_text='0 uses the router profile default')),
                 ('upload_kbps', models.IntegerField(default=0)),
                 ('device_limit', models.IntegerField(default=1)),
-                ('fup_action', models.CharField(choices=[('throttle', 'Throttle to slow profile'), ('block', 'Disconnect and require a new pass')], default='throttle', max_length=10)),
+                ('fup_action', models.CharField(choices=[('throttle', 'Throttle to slow profile'), ('block', 'Disconnect and require a new package')], default='throttle', max_length=10)),
                 ('fup_download_kbps', models.IntegerField(default=256)),
                 ('fup_upload_kbps', models.IntegerField(default=128)),
                 ('fup_profile', models.CharField(blank=True, help_text='Router profile to switch to once capped', max_length=60)),

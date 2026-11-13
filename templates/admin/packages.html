@@ -6,7 +6,7 @@
     <h1>Passes</h1>
     <p class="muted">What the capture page sells. Prices are charged in {{ isp.currency }}.</p>
   </div>
-  <a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New pass</a>
+  {% if request.membership.role != "readonly" %}<a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New package</a>{% endif %}
 </div>
 
 {% if items %}
@@ -30,7 +30,7 @@
         </td>
         <td class="num">{{ isp.currency }} {{ package.price|floatformat:0 }}</td>
         <td>{% if package.is_active %}<span class="badge badge--ok">Live</span>{% else %}<span class="badge badge--off">Hidden</span>{% endif %}</td>
-        <td><a class="small" href="{% url 'panel:package_edit' package.id %}">Edit</a></td>
+        <td>{% if request.membership.role != "readonly" %}<a class="small" href="{% url 'panel:package_edit' package.id %}">Edit</a>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -39,9 +39,9 @@
 {% else %}
 <div class="card">
   <div class="empty">
-    <h3>No passes yet</h3>
-    <p class="small">Create at least one pass before sharing the capture page. Start with a short pass you can test on your own phone.</p>
-    <a class="btn btn--secondary btn--sm" href="{% url 'panel:package_add' %}">Create the first pass</a>
+    <h3>No packages yet</h3>
+    <p class="small">Create at least one package before sharing the capture page. Start with a short package you can test on your own phone.</p>
+    {% if request.membership.role != "readonly" %}<a class="btn btn--secondary btn--sm" href="{% url 'panel:package_add' %}">Create the first package</a>{% endif %}
   </div>
 </div>
 {% endif %}

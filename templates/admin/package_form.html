@@ -1,15 +1,15 @@
 {% extends "admin/base_panel.html" %}
-{% block title %}{% if package %}Edit pass{% else %}New pass{% endif %} - Pingota{% endblock %}
+{% block title %}{% if package %}Edit package{% else %}New package{% endif %} - Pingota{% endblock %}
 {% block panel %}
 <div class="page-head">
   <div>
-    <h1>{% if package %}Edit {{ package.name }}{% else %}New pass{% endif %}</h1>
+    <h1>{% if package %}Edit {{ package.name }}{% else %}New package{% endif %}</h1>
     <p class="muted">Duration and speed are enforced by the router, not by a browser timer.</p>
   </div>
-  <a class="small" href="{% url 'panel:packages' %}">Back to passes</a>
+  <a class="small" href="{% url 'panel:packages' %}">Back to packages</a>
 </div>
 
-<form method="post" class="grid-lead" style="align-items:start" data-busy="Saving pass">
+<form method="post" class="grid-lead" style="align-items:start" data-busy="Saving package">
   {% csrf_token %}
   <div class="card card--span stack-16">
     <div>

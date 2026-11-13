@@ -6,12 +6,14 @@
     <h1>Network</h1>
     <p class="muted">Health is sampled once a minute. A gap means the router stopped answering.</p>
   </div>
+  {% if request.membership.role != "readonly" %}
   <form method="post" action="{% url 'panel:router_add' %}" class="filters" data-busy="Adding router">
     {% csrf_token %}
     <label class="sr-only" for="router-name">Name of the new router</label>
     <input id="router-name" name="name" type="text" required maxlength="80" placeholder="Where this router serves">
     <button class="btn btn--primary btn--sm" type="submit">Add router</button>
   </form>
+  {% endif %}
 </div>
 
 {% if cards %}
@@ -20,7 +22,7 @@
   <div class="card">
     <div class="row-between">
       <div>
-        <h3 style="margin:0"><a href="{% url 'panel:router_detail' card.router.id %}">{{ card.router.name }}</a></h3>
+        <h3 style="margin:0">{% if request.membership.role != "readonly" %}<a href="{% url 'panel:router_detail' card.router.id %}">{{ card.router.name }}</a>{% else %}{{ card.router.name }}{% endif %}</h3>
         <p class="small mono" style="margin:4px 0 0">{{ card.router.tunnel_address|default:"No tunnel address" }}{% if card.router.routeros_version %} · RouterOS {{ card.router.routeros_version }}{% endif %}</p>
       </div>
       <span class="badge {{ card.router.health_badge_class }}">{{ card.router.health_label }}</span>
@@ -56,13 +58,16 @@
       {% endif %}
     </p>
 
+    {% if request.membership.role != "readonly" %}
     <div class="row" style="gap:8px; margin-top:12px; flex-wrap:wrap">
       <a class="btn btn--secondary btn--sm" href="{% url 'panel:router_detail' card.router.id %}">Open install page</a>
       <form method="post" action="{% url 'panel:test_router' card.router.id %}" data-busy="Testing connection">
         {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
         <button class="btn btn--quiet btn--sm" type="submit">Test connection</button>
       </form>
     </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -70,7 +75,7 @@
 <div class="card">
   <div class="empty">
     <h3>No router connected</h3>
-    <p class="small">Add one above and Pingota generates the tunnel, the API user and one script to paste into RouterOS. The router dials out, so CGNAT works without port forwarding.</p>
+    <p class="small">{% if request.membership.role == "readonly" %}No router has been added for this network yet. Ask an owner or staff member to add one.{% else %}Add one above and Pingota generates the tunnel, the API user and one script to paste into RouterOS. The router dials out, so CGNAT works without port forwarding.{% endif %}</p>
     <a class="btn btn--secondary btn--sm" href="/docs/#router">How onboarding works</a>
   </div>
 </div>

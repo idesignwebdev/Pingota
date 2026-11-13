@@ -8,7 +8,7 @@
   </div>
   <div class="row" style="flex-wrap:wrap">
     <a class="btn btn--secondary btn--sm" href="/portal/{{ isp.slug }}/" target="_blank" rel="noopener">Open capture page</a>
-    <a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New pass</a>
+    {% if request.membership.role != "readonly" %}<a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New package</a>{% endif %}
   </div>
 </div>
 
@@ -56,7 +56,7 @@
     <div class="stack-8">
       {% for router in routers %}
         <div class="row-between small">
-          <a href="{% url 'panel:router_detail' router.id %}">{{ router.name }}</a>
+          {% if request.membership.role != "readonly" %}<a href="{% url 'panel:router_detail' router.id %}">{{ router.name }}</a>{% else %}{{ router.name }}{% endif %}
           <span class="badge {{ router.health_badge_class }}">{{ router.health_label }}</span>
         </div>
       {% empty %}

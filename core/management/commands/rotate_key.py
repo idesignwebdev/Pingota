@@ -9,10 +9,11 @@ command does not depend on which key is currently loaded in the environment.
     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
     # 2. dry run: prove the old key still opens everything
-    python manage.py rotate_key --old-key "$OLD" --new-key "$NEW" --dry-run
+    #    Keep the "=" so a key that starts with "-" is not read as an option.
+    python manage.py rotate_key --old-key="$OLD" --new-key="$NEW" --dry-run
 
     # 3. apply
-    python manage.py rotate_key --old-key "$OLD" --new-key "$NEW"
+    python manage.py rotate_key --old-key="$OLD" --new-key="$NEW"
 
     # 4. put the new key in the environment and restart
 
@@ -29,8 +30,11 @@ from core.crypto import decrypt_with, encrypt_with, validate_key
 #: router and payment credentials.
 TARGETS = [
     ("apps.tenants.models.Router", ["api_password", "tunnel_private_key"]),
-    ("apps.tenants.models.PaystackConfig", ["secret_key"]),
-    ("apps.tenants.models.MpesaConfig", ["consumer_secret", "passkey"]),
+    ("apps.tenants.models.PaystackConfig", ["secret_key", "webhook_secret"]),
+    (
+        "apps.tenants.models.MpesaConfig",
+        ["shortcode", "consumer_key", "consumer_secret", "passkey"],
+    ),
 ]
 
 

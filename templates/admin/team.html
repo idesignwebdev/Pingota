@@ -1,0 +1,83 @@
+{% extends "admin/base_panel.html" %}
+{% block title %}Team - Pingota{% endblock %}
+{% block panel %}
+<div class="page-head">
+  <div>
+    <h1>Team</h1>
+    <p class="muted">Owners change settings and people. Staff run routers, passes and vouchers. Read only can see the numbers without changing anything.</p>
+  </div>
+</div>
+
+<div class="grid-lead" style="align-items:start">
+  <div class="card card--span data-card" style="padding:0; overflow-x:auto">
+    {% if members %}
+    <table>
+      <thead>
+        <tr><th scope="col">Login</th><th scope="col">Access</th><th scope="col">Added</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+        <tr>
+          <td>
+            <div>{{ member.user.get_username }}</div>
+            {% if member.user_id == request.user.id %}<span class="small muted">You</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'panel:team_role' member.id %}" class="row" style="gap:8px" data-busy="Saving access">
+              {% csrf_token %}
+              <label class="sr-only" for="role-{{ member.id }}">Access level for {{ member.user.get_username }}</label>
+              <select id="role-{{ member.id }}" name="role" style="min-height:36px; width:auto">
+                {% for key, label in roles %}
+                  <option value="{{ key }}" {% if member.role == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn--quiet btn--sm" type="submit">Save</button>
+            </form>
+          </td>
+          <td class="small">{{ member.created_at|date:"d M Y" }}</td>
+          <td>
+            {% if member.user_id != request.user.id %}
+            <form method="post" action="{% url 'panel:team_remove' member.id %}"
+                  data-confirm="Remove this login? They lose access to the panel immediately."
+                  data-busy="Removing login">
+              {% csrf_token %}
+              <button class="btn btn--danger btn--sm" type="submit">Remove</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:20px">
+      <div class="empty">
+        <h3>No team logins yet</h3>
+        <p class="small" style="margin:0">Create one below so a colleague can run the network without sharing your password.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card stack-16">
+    <h2 style="font-size:1.3rem; margin:0">Add a login</h2>
+    <form method="post" action="{% url 'panel:team_invite' %}" class="stack-16" data-busy="Creating login">
+      {% csrf_token %}
+      <div>
+        <label for="team-email">Sign-in email</label>
+        <input id="team-email" name="email" type="email" required autocomplete="off" placeholder="amina@example.com">
+        <p class="help">This becomes their username. We show a temporary password once.</p>
+      </div>
+      <div>
+        <label for="team-role">Access</label>
+        <select id="team-role" name="role">
+          <option value="staff" selected>Staff — run the network</option>
+          <option value="readonly">Read only — see the numbers</option>
+          <option value="owner">Owner — full control</option>
+        </select>
+      </div>
+      <div><button class="btn btn--primary" type="submit">Create login</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

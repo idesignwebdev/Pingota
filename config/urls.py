@@ -10,6 +10,8 @@ admin.site.site_header = "Pingota"
 admin.site.site_title = "Pingota admin"
 admin.site.index_title = "Platform administration"
 
+health_view = TemplateView.as_view(template_name="healthz.txt")
+
 urlpatterns = [
     # Marketing site
     path("", TemplateView.as_view(template_name="marketing/home.html"), name="home"),
@@ -41,7 +43,10 @@ urlpatterns = [
     ),
     path("", include("apps.web.admin_urls")),
     path("payments/", include("apps.billing.urls")),
-    path("healthz/", TemplateView.as_view(template_name="healthz.txt"), name="healthz"),
+    path("healthz/", health_view, name="healthz"),
+    # Hosting health checks use either spelling; both must answer 200.
+    path("health", health_view, name="health"),
+    path("health/", health_view),
     # Browsers still ask for /favicon.ico even when an SVG icon is declared.
     path(
         "favicon.ico",

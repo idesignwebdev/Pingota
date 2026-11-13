@@ -56,7 +56,7 @@ When the cap is crossed, the package decides what happens:
 
 Throttling happens once per pass: the grant is marked `throttled` and not touched again. The event log
 records it as *Throttled by allowance*. To reset a device after a false throttle, set its allowance
-back in the live view or start a new pass.
+back in the live view or start a new package.
 
 ---
 

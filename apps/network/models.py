@@ -37,7 +37,7 @@ class Package(UUIDModel):
 
     # Fair use policy: what happens when the cap is reached. Throttling keeps
     # the customer online at a slower speed; cutting them off is the strict mode.
-    FUP_ACTION = [("throttle", "Throttle to slow profile"), ("block", "Disconnect and require a new pass")]
+    FUP_ACTION = [("throttle", "Throttle to slow profile"), ("block", "Disconnect and require a new package")]
     fup_action = models.CharField(max_length=10, choices=FUP_ACTION, default="throttle")
     fup_download_kbps = models.IntegerField(default=256)
     fup_upload_kbps = models.IntegerField(default=128)

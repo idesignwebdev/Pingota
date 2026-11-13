@@ -78,6 +78,7 @@
       <form method="post" action="{% url 'panel:test_router' router.id %}"
             class="row" style="gap:8px" data-busy="Testing connection">
         {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
         <button class="btn btn--quiet btn--sm" type="submit">Test connection</button>
         <span class="small muted">Sends a health check to this router.</span>
       </form>
@@ -109,14 +110,23 @@
           <input id="public_key" name="public_key" type="text" value="{{ paystack.public_key|default:'' }}" placeholder="pk_live_...">
         </div>
         <div>
+          <label for="webhook_secret">Webhook signing secret</label>
+          <input id="webhook_secret" name="webhook_secret" type="password" autocomplete="new-password"
+                 placeholder="{% if paystack and paystack.webhook_secret %}Saved, leave blank to keep{% else %}whsec_...{% endif %}">
+          <p class="help">Shown next to the webhook URL in Paystack. It is not the secret key.</p>
+          {% if paystack and paystack.enabled and not webhook_secret_ready %}
+          <p class="help" style="color:var(--danger)">Paystack has no signing secret stored for this account, so signed deliveries will be rejected. Add the whsec_ value above.</p>
+          {% endif %}
+        </div>
+        <div>
           <label for="subaccount_code">Subaccount code (optional)</label>
           <input id="subaccount_code" name="subaccount_code" type="text" value="{{ paystack.subaccount_code|default:'' }}" placeholder="ACCT_xxxxx">
-          <p class="help">Set this to settle into your own bank account instead of the platform account.</p>
+          <p class="help">Only for a subaccount created under the account that owns the secret key. Leave blank when using your own keys.</p>
         </div>
         <div>
           <label for="paystack_webhook">Webhook URL</label>
           <input id="paystack_webhook" type="text" class="mono" value="{{ webhook_url }}" readonly>
-          <p class="help">Paste this into Paystack under Settings, API Keys and Webhooks.</p>
+          <p class="help">Paste this into Paystack under Developers, API configuration.</p>
         </div>
         <label class="check">
           <input type="checkbox" name="enabled" {% if paystack and paystack.enabled %}checked{% endif %}>

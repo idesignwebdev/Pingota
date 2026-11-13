@@ -10,7 +10,7 @@
     {% if vouchers %}
       <a class="btn btn--secondary btn--sm" href="{% url 'panel:voucher_sheet' %}{% if batch %}?batch={{ batch|urlencode }}{% endif %}" target="_blank" rel="noopener">Print sheet</a>
     {% endif %}
-    <a class="btn btn--primary btn--sm" href="{% url 'panel:voucher_generate' %}">Generate codes</a>
+    {% if request.membership.role != "readonly" %}<a class="btn btn--primary btn--sm" href="{% url 'panel:voucher_generate' %}">Generate codes</a>{% endif %}
   </div>
 </div>
 
@@ -43,7 +43,7 @@
         <td class="mono small">{{ voucher.redeemed_by.mac_address|default:"-" }}</td>
         <td class="small">{{ voucher.created_at|date:"d M H:i" }}</td>
         <td>
-          {% if voucher.state == "unused" %}
+          {% if voucher.state == "unused" and request.membership.role != "readonly" %}
           <form method="post" action="{% url 'panel:voucher_void' voucher.id %}"
                 data-confirm="Void this code? It will stop working at the counter."
                 data-busy="Voiding code">
@@ -61,7 +61,7 @@
     <div class="empty">
       <h3>No vouchers here yet</h3>
       <p class="small">Generate a batch, print the sheet and sell the codes at the counter. Guests redeem them on the capture page.</p>
-      <a class="btn btn--secondary btn--sm" href="{% url 'panel:voucher_generate' %}">Generate codes</a>
+      {% if request.membership.role != "readonly" %}<a class="btn btn--secondary btn--sm" href="{% url 'panel:voucher_generate' %}">Generate codes</a>{% endif %}
     </div>
   </div>
   {% endif %}

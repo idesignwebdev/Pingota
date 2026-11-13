@@ -106,11 +106,16 @@ class Command(BaseCommand):
 
         User = get_user_model()
         operator, created_user = User.objects.get_or_create(
-            username="operator", defaults={"email": "ops@kondele.example", "is_staff": True}
+            username="operator", defaults={"email": "ops@kondele.example"}
         )
         if created_user:
             operator.set_password("changeme123")
             operator.save(update_fields=["password"])
+        if operator.is_staff:
+            # The demo operator belongs to one ISP; staff access would expose
+            # the platform admin across tenants.
+            operator.is_staff = False
+            operator.save(update_fields=["is_staff"])
         Membership.objects.get_or_create(user=operator, defaults={"isp": isp, "role": "owner"})
 
         now = timezone.now()

@@ -1394,8 +1394,8 @@ textarea[aria-invalid="true"] {
 .panel__bar-inner {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
-  min-height: 64px;
+  column-gap: var(--space-5);
+  padding-block: 10px;
   flex-wrap: wrap;
 }
 
@@ -1413,9 +1413,15 @@ textarea[aria-invalid="true"] {
   color: var(--cream);
 }
 
+.panel__nav-disclosure {
+  width: 100%;
+}
+
 .panel__nav-disclosure > .site-nav {
   display: flex;
-  gap: 18px;
+  gap: 22px;
+  padding: 10px 0 12px;
+  flex-wrap: wrap;
 }
 
 .panel__account {

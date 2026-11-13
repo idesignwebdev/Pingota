@@ -201,6 +201,7 @@ class PaystackConfig(UUIDModel):
     secret_key = models.CharField(max_length=512, blank=True)  # encrypted
     public_key = models.CharField(max_length=255, blank=True)
     subaccount_code = models.CharField(max_length=60, blank=True)
+    webhook_secret = models.CharField(max_length=512, blank=True)  # encrypted, whsec_...
     enabled = models.BooleanField(default=False)
 
     def set_secret(self, raw: str) -> None:
@@ -208,6 +209,12 @@ class PaystackConfig(UUIDModel):
 
     def get_secret(self) -> str:
         return decrypt(self.secret_key)
+
+    def set_webhook_secret(self, raw: str) -> None:
+        self.webhook_secret = encrypt(raw) if raw else ""
+
+    def get_webhook_secret(self) -> str:
+        return decrypt(self.webhook_secret)
 
 
 class MpesaConfig(UUIDModel):

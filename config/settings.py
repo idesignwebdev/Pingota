@@ -112,6 +112,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "config.middleware.PlatformAdminGuardMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -194,6 +195,9 @@ SYNC_TICK_SECONDS = int(env("SYNC_TICK_SECONDS", "60"))
 # kept per-tenant for KES settlements straight to the ISP's own shortcode.
 PAYSTACK_BASE_URL = env("PAYSTACK_BASE_URL", "https://api.paystack.co")
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
+# Paystack's current webhook signing secret (whsec_...). Per-ISP secrets live in
+# PaystackConfig; this is the fallback for the platform account.
+PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", "")
 PAYMENT_DEFAULT_CURRENCY = env("PAYMENT_DEFAULT_CURRENCY", "KES")
 MPESA_ENV = env("MPESA_ENV", "sandbox")
 

@@ -5,26 +5,29 @@
   <div class="panel__bar">
     <div class="wrap panel__bar-inner">
       <a class="logo" href="/admin/">{% include "partials/logo.svg" %} Pingota</a>
+      <div class="panel__account">
+        <a class="small" href="/admin/password-change/">{% if isp %}{{ isp.name }} · {% endif %}{{ request.user.get_username }}{% if request.membership %} · {{ request.membership.get_role_display }}{% endif %}</a>
+        <form method="post" action="/admin/logout/" data-busy="Signing out">
+          {% csrf_token %}
+          <button class="btn btn--ghost btn--sm" type="submit">Sign out</button>
+        </form>
+      </div>
       <details class="nav-disclosure panel__nav-disclosure" open>
         <summary class="nav-toggle nav-toggle--dark">Sections</summary>
         <nav class="site-nav panel__nav" aria-label="Operator sections">
           <a href="/admin/" {% if active_nav == "overview" %}aria-current="page"{% endif %}>Overview</a>
           <a href="/admin/live/" {% if active_nav == "live" %}aria-current="page"{% endif %}>Live access</a>
           <a href="/admin/customers/" {% if active_nav == "customers" %}aria-current="page"{% endif %}>Customers</a>
-          <a href="/admin/packages/" {% if active_nav == "packages" %}aria-current="page"{% endif %}>Passes</a>
+          <a href="/admin/packages/" {% if active_nav == "packages" %}aria-current="page"{% endif %}>Packages</a>
           <a href="/admin/vouchers/" {% if active_nav == "vouchers" %}aria-current="page"{% endif %}>Vouchers</a>
           <a href="/admin/network/" {% if active_nav == "network" %}aria-current="page"{% endif %}>Network</a>
           <a href="/admin/revenue/" {% if active_nav == "revenue" %}aria-current="page"{% endif %}>Revenue</a>
-          <a href="/admin/settings/" {% if active_nav == "settings" %}aria-current="page"{% endif %}>Settings</a>
+          {% if request.membership.role == "owner" %}
+            <a href="/admin/team/" {% if active_nav == "team" %}aria-current="page"{% endif %}>Team</a>
+            <a href="/admin/settings/" {% if active_nav == "settings" %}aria-current="page"{% endif %}>Settings</a>
+          {% endif %}
         </nav>
       </details>
-      <div class="panel__account">
-        <a class="small" href="/admin/password-change/">{% if isp %}{{ isp.name }} · {% endif %}{{ request.user.get_username }}</a>
-        <form method="post" action="/admin/logout/" data-busy="Signing out">
-          {% csrf_token %}
-          <button class="btn btn--ghost btn--sm" type="submit">Sign out</button>
-        </form>
-      </div>
     </div>
   </div>
 

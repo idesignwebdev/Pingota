@@ -15,12 +15,12 @@ from apps.network import mikrotik, onboarding
 from apps.network.tunguard import TunGuardError
 from apps.network.models import SessionEvent
 from apps.tenants.models import Router
-from apps.web.admin_views import current_isp, panel_required
+from apps.web.admin_views import current_isp, staff_required
 
 log = logging.getLogger(__name__)
 
 
-@panel_required
+@staff_required
 @require_POST
 def add_router(request):
     isp = current_isp(request)
@@ -59,7 +59,7 @@ def add_router(request):
     return redirect("panel:router_detail", router_id=router.id)
 
 
-@panel_required
+@staff_required
 @require_GET
 def router_detail(request, router_id):
     isp = current_isp(request)
@@ -85,7 +85,7 @@ def router_detail(request, router_id):
     )
 
 
-@panel_required
+@staff_required
 @require_POST
 def regenerate(request, router_id):
     isp = current_isp(request)

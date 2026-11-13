@@ -17,6 +17,19 @@ class SignupError(RuntimeError):
     pass
 
 
+def _validate_operator_login(user, email: str) -> None:
+    """Reject logins that must stay outside an ISP membership."""
+    if user.is_superuser or user.is_staff:
+        raise SignupError(
+            f"{email} belongs to a platform account. Use a different email for the ISP."
+        )
+    if Membership.objects.filter(user=user).exists():
+        raise SignupError(
+            f"{email} is already attached to another network. "
+            "Use a different email or move the existing account first."
+        )
+
+
 def approve_signup(signup) -> tuple[Isp, bool, str]:
     """Create the ISP, its first login and a 24-hour trial.
 
@@ -25,6 +38,13 @@ def approve_signup(signup) -> tuple[Isp, bool, str]:
     """
     if signup.status != "pending":
         raise SignupError("That request was already handled.")
+
+    User = get_user_model()
+    # Validate before creating the ISP: MongoDB's atomic() is a no-op unless
+    # the cluster runs as a replica set, so a late error would leave an orphan.
+    existing = User.objects.filter(username=signup.email).first()
+    if existing is not None:
+        _validate_operator_login(existing, signup.email)
 
     with transaction.atomic():
         base_slug = slugify(signup.business_name)[:60] or f"isp-{secrets.token_hex(3)}"
@@ -43,15 +63,13 @@ def approve_signup(signup) -> tuple[Isp, bool, str]:
             support_phone=signup.phone,
         )
 
-        User = get_user_model()
         user, created = User.objects.get_or_create(
             username=signup.email, defaults={"email": signup.email}
         )
-        if not created and Membership.objects.filter(user=user).exists():
-            raise SignupError(
-                f"{signup.email} is already attached to another network. "
-                "Use a different email or move the existing account first."
-            )
+        if not created:
+            # Re-check in case another approval created the login after the
+            # check above.
+            _validate_operator_login(user, signup.email)
 
         password = ""
         if created:

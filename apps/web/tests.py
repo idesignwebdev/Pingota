@@ -14,16 +14,21 @@ from django.utils import timezone
 from apps.accounts.models import Membership, SignupRequest
 from apps.billing import mpesa
 from apps.billing.models import Payment
-from apps.network.models import Package
+from apps.network.models import Package, Voucher
 from apps.tenants.models import Isp, MpesaConfig, Router, SubscriptionPlan
 from apps.web.admin_views import _daily_totals
 
 TEST_KEY = "ZMD6DO1R8ZmXwA-qxTiemkgDNI3ZqSWbaSyoZWCSe5Q="
 
 
-def operator_for(isp: Isp, username: str = "ops", password: str = "operator-pass-123"):
+def operator_for(
+    isp: Isp,
+    username: str = "ops",
+    password: str = "operator-pass-123",
+    role: str = "owner",
+):
     user = get_user_model().objects.create_user(username=username, password=password)
-    Membership.objects.create(user=user, isp=isp, role="owner")
+    Membership.objects.create(user=user, isp=isp, role=role)
     return user
 
 
@@ -77,6 +82,17 @@ class AuthFlowTests(TestCase):
                 response = self.client.get(path)
                 self.assertRedirects(
                     response, "/django-admin/", fetch_redirect_response=False
+                )
+
+    def test_operator_with_staff_flag_cannot_open_django_admin(self):
+        self.operator.is_staff = True
+        self.operator.save(update_fields=["is_staff"])
+        self.client.force_login(self.operator)
+        for path in ("/django-admin/", "/django-admin/accounts/signuprequest/"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertRedirects(
+                    response, "/admin/", fetch_redirect_response=False
                 )
 
     def test_unauthenticated_panel_access_redirects_to_login(self):
@@ -142,6 +158,7 @@ class PanelNavigationTests(TestCase):
             "/admin/network/",
             "/admin/revenue/",
             "/admin/settings/",
+            "/admin/team/",
             "/admin/password-change/",
         )
         for path in paths:
@@ -151,7 +168,17 @@ class PanelNavigationTests(TestCase):
 
     def test_panel_nav_links_are_present(self):
         response = self.client.get("/admin/")
-        for label in ("Overview", "Live access", "Customers", "Passes", "Vouchers", "Network", "Revenue", "Settings"):
+        for label in (
+            "Overview",
+            "Live access",
+            "Customers",
+            "Passes",
+            "Vouchers",
+            "Network",
+            "Revenue",
+            "Team",
+            "Settings",
+        ):
             with self.subTest(label=label):
                 self.assertContains(response, label)
 
@@ -163,6 +190,161 @@ class PanelNavigationTests(TestCase):
         response = self.client.get("/django-admin/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Platform administration")
+
+
+class RoleEnforcementTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Net", slug="net")
+        self.owner = operator_for(self.isp, "owner-user")
+        self.staff = operator_for(self.isp, "staff-user", role="staff")
+        self.readonly = operator_for(self.isp, "readonly-user", role="readonly")
+        self.owner_member = Membership.objects.get(user=self.owner)
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.router = Router.objects.create(isp=self.isp, name="AP")
+
+    def test_readonly_can_read_but_not_mutate(self):
+        self.client.force_login(self.readonly)
+        for path in ("/admin/", "/admin/packages/", "/admin/vouchers/"):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 200)
+
+        self.assertEqual(self.client.get("/admin/packages/add/").status_code, 403)
+        self.assertEqual(self.client.get("/admin/settings/").status_code, 403)
+        self.assertEqual(self.client.get("/admin/team/").status_code, 403)
+
+        before = self.isp.packages.count()
+        posts = (
+            (
+                "/admin/packages/add/",
+                {"name": "8 hours", "price": "50", "duration_value": "8"},
+            ),
+            ("/admin/vouchers/generate/", {"package_id": self.package.id, "count": "1"}),
+            ("/admin/actions/device/disconnect/", {"mac": "A4:5E:60:1C:92:0B"}),
+            (f"/admin/actions/router/{self.router.id}/test/", {}),
+            ("/admin/team/invite/", {"email": "new@example.com", "role": "staff"}),
+        )
+        for path, data in posts:
+            with self.subTest(path=path):
+                self.assertEqual(self.client.post(path, data).status_code, 403)
+        self.assertEqual(self.isp.packages.count(), before)
+        self.assertFalse(Membership.objects.filter(user__username="new@example.com").exists())
+
+    def test_staff_can_operate_but_cannot_change_settings_or_people(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/admin/packages/add/").status_code, 200)
+        self.assertEqual(self.client.get("/admin/settings/").status_code, 403)
+        self.assertEqual(self.client.get("/admin/team/").status_code, 403)
+
+        response = self.client.post(
+            "/admin/packages/add/",
+            {
+                "name": "8 hours",
+                "kind": "hourly",
+                "price": "50",
+                "duration_units": "hours",
+                "duration_value": "8",
+                "download_kbps": "0",
+                "upload_kbps": "0",
+                "device_limit": "1",
+                "sort_order": "0",
+                "is_active": "on",
+            },
+        )
+        self.assertRedirects(response, "/admin/packages/", fetch_redirect_response=False)
+        self.assertTrue(self.isp.packages.filter(name="8 hours").exists())
+
+        response = self.client.post(
+            "/admin/vouchers/generate/", {"package_id": self.package.id, "count": "2"}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Voucher.objects.filter(isp=self.isp).count(), 2)
+
+    def test_navigation_only_shows_settings_and_team_to_owners(self):
+        self.client.force_login(self.staff)
+        body = self.client.get("/admin/").content.decode()
+        self.assertNotIn('href="/admin/settings/"', body)
+        self.assertNotIn('href="/admin/team/"', body)
+
+        self.client.force_login(self.owner)
+        body = self.client.get("/admin/").content.decode()
+        self.assertIn('href="/admin/settings/"', body)
+        self.assertIn('href="/admin/team/"', body)
+
+    def test_owner_can_invite_and_remove_a_login(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            "/admin/team/invite/", {"email": "New@Example.com", "role": "staff"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "new@example.com")
+        self.assertContains(response, "Temporary password")
+
+        member = Membership.objects.get(user__username="new@example.com")
+        self.assertEqual(member.isp, self.isp)
+        self.assertEqual(member.role, "staff")
+        self.assertTrue(member.user.is_active)
+        user = member.user
+
+        response = self.client.post(f"/admin/team/{member.id}/remove/")
+        self.assertRedirects(response, "/admin/team/", fetch_redirect_response=False)
+        self.assertFalse(Membership.objects.filter(pk=member.pk).exists())
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+
+    def test_platform_login_cannot_be_added_to_a_network(self):
+        platform = get_user_model().objects.create_superuser(
+            username="platform@example.com",
+            email="platform@example.com",
+            password="platform-pass-123",
+        )
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            "/admin/team/invite/",
+            {"email": "platform@example.com", "role": "staff"},
+            follow=True,
+        )
+        self.assertContains(response, "belongs to a platform login")
+        self.assertFalse(Membership.objects.filter(user=platform).exists())
+
+    def test_owner_can_change_a_members_role(self):
+        readonly_member = Membership.objects.get(user=self.readonly)
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            f"/admin/team/{readonly_member.id}/role/", {"role": "staff"}
+        )
+        self.assertRedirects(response, "/admin/team/", fetch_redirect_response=False)
+        readonly_member.refresh_from_db()
+        self.assertEqual(readonly_member.role, "staff")
+
+    def test_last_owner_cannot_be_demoted_or_removed(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            f"/admin/team/{self.owner_member.id}/role/", {"role": "staff"}, follow=True
+        )
+        self.assertContains(response, "only owner")
+        self.owner_member.refresh_from_db()
+        self.assertEqual(self.owner_member.role, "owner")
+
+        response = self.client.post(f"/admin/team/{self.owner_member.id}/remove/", follow=True)
+        self.assertContains(response, "cannot remove your own login")
+        self.assertTrue(Membership.objects.filter(pk=self.owner_member.pk).exists())
+
+    def test_owner_cannot_change_another_networks_member(self):
+        other = Isp.objects.create(name="Other", slug="other")
+        outsider = operator_for(other, "outsider")
+        outsider_member = Membership.objects.get(user=outsider)
+        self.client.force_login(self.owner)
+        self.assertEqual(
+            self.client.post(
+                f"/admin/team/{outsider_member.id}/role/", {"role": "readonly"}
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(f"/admin/team/{outsider_member.id}/remove/").status_code, 404
+        )
 
 
 class SignupApprovalTests(TestCase):
@@ -183,6 +365,29 @@ class SignupApprovalTests(TestCase):
         response = self.client.get("/django-admin/accounts/signuprequest/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Kondele Fibre")
+
+    def test_platform_login_cannot_be_attached_to_an_isp(self):
+        get_user_model().objects.create_superuser(
+            username="platform@example.com",
+            email="platform@example.com",
+            password="platform-pass-123",
+        )
+        self.signup.email = "platform@example.com"
+        self.signup.save(update_fields=["email"])
+        isp_count = Isp.objects.count()
+
+        response = self.client.post(f"/signup/{self.signup.pk}/approve/")
+        self.assertRedirects(
+            response,
+            "/django-admin/accounts/signuprequest/",
+            fetch_redirect_response=False,
+        )
+        self.signup.refresh_from_db()
+        self.assertEqual(self.signup.status, "pending")
+        self.assertEqual(Isp.objects.count(), isp_count)
+        self.assertFalse(
+            Membership.objects.filter(user__username="platform@example.com").exists()
+        )
 
     def test_approval_creates_a_dated_trial_and_operator_login(self):
         response = self.client.post(f"/signup/{self.signup.pk}/approve/")
@@ -418,6 +623,11 @@ class CallbackUrlTests(TestCase):
 
 @override_settings(DEBUG=False)
 class ErrorPageTests(TestCase):
+    def test_health_endpoints_return_ok(self):
+        for path in ("/healthz/", "/health", "/health/"):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 200)
+
     def test_unknown_address_uses_the_branded_page(self):
         response = self.client.get("/this-address-does-not-exist/")
         self.assertEqual(response.status_code, 404)
