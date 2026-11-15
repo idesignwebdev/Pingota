@@ -167,6 +167,67 @@ class OnboardingTests(TestCase):
         self.assertEqual(self.client.get("/routers/not-a-real-token/report/").status_code, 404)
 
 
+class MpesaCallbackTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Net", slug="net")
+        Router.objects.create(isp=self.isp, name="AP", host="127.0.0.1")
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.customer = Customer.objects.create(
+            isp=self.isp, mac_address="A4:5E:60:1C:92:0B"
+        )
+        self.payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            provider="mpesa",
+            reference="pg-mpesa",
+            provider_reference="ws_CO_123",
+            amount=Decimal("10"),
+            phone="254712345678",
+        )
+
+    def callback(self, amount):
+        return self.client.post(
+            "/payments/mpesa/callback/net/",
+            data=json.dumps(
+                {
+                    "Body": {
+                        "stkCallback": {
+                            "ResultCode": 0,
+                            "ResultDesc": "The service request is processed successfully.",
+                            "CheckoutRequestID": "ws_CO_123",
+                            "CallbackMetadata": {
+                                "Item": [
+                                    {"Name": "Amount", "Value": amount},
+                                    {"Name": "MpesaReceiptNumber", "Value": "RCPT123"},
+                                    {"Name": "PhoneNumber", "Value": 254712345678},
+                                ]
+                            },
+                        }
+                    }
+                }
+            ),
+            content_type="application/json",
+        )
+
+    def test_amount_mismatch_does_not_provision(self):
+        response = self.callback(1)
+        self.assertEqual(response.status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "pending")
+        self.assertEqual(AccessGrant.objects.filter(isp=self.isp).count(), 0)
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_matching_amount_settles(self, add_user):
+        response = self.callback(10)
+        self.assertEqual(response.status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, "paid")
+        self.assertEqual(AccessGrant.objects.filter(isp=self.isp).count(), 1)
+
+
 class FupTests(TestCase):
     @mock.patch("apps.network.mikrotik.apply_profile")
     @mock.patch("apps.network.mikrotik.usage_by_user")

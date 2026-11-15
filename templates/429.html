@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Too many tries - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:460px; padding-top:64px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card stack-16">
+    <div>
+      <h1 style="font-size:1.4rem; margin-bottom:4px">Too many tries</h1>
+      <p class="small" style="margin:0">{{ message }}</p>
+    </div>
+
+    {% if retry_url %}
+      <a class="btn btn--primary btn--block" href="{{ retry_url }}">{{ retry_label|default:"Try again" }}</a>
+    {% else %}
+      <a class="btn btn--primary btn--block" href="/">Back to Pingota</a>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

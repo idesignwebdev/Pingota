@@ -16,6 +16,7 @@ from apps.network.tunguard import TunGuardError
 from apps.network.models import SessionEvent
 from apps.tenants.models import Router
 from apps.web.admin_views import current_isp, staff_required
+from core.security import rate_limit
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ def regenerate(request, router_id):
     return redirect("panel:router_detail", router_id=router.id)
 
 
+@rate_limit("router_report", limit=30, window=60, methods=("GET",), json=True)
 @csrf_exempt
 @require_GET
 def router_report(request, token):

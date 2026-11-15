@@ -14,10 +14,12 @@ from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import SignupRequest
 from apps.accounts.services import SignupError, approve_signup
+from core.security import rate_limit
 
 log = logging.getLogger(__name__)
 
 
+@rate_limit("signup", limit=10, window=3600, methods=("POST",), retry_url="/signup/")
 @require_http_methods(["GET", "POST"])
 def signup(request):
     if request.method == "POST":

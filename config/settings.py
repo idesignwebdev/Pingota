@@ -4,12 +4,15 @@ One process serves the public site, the captive portal and the admin panel.
 Configuration comes from environment variables only (Dokploy injects them).
 """
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+
+TESTING = any(argument == "test" for argument in sys.argv)
 
 
 def env(name, default=""):
@@ -30,6 +33,10 @@ DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Forwarded client IP headers are only read from a private/loopback proxy peer.
+# Set TRUSTED_PROXY_IPS when the reverse proxy itself has a public address.
+TRUST_PROXY_HEADERS = env_bool("TRUST_PROXY_HEADERS", True)
+TRUSTED_PROXY_IPS = env_list("TRUSTED_PROXY_IPS")
 
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 # The panel is multi-tenant: each ISP logs in and sees only their own data.
@@ -87,6 +94,29 @@ else:
     }
     DATA_DIR.mkdir(exist_ok=True)
 
+# --- Cache ------------------------------------------------------------------
+# Rate limits and sign-in lockouts must be shared by every worker. Set REDIS_URL
+# in production (compose provides redis://redis:6379/0); a laptop keeps the
+# in-process cache, where one worker is the whole deployment anyway.
+REDIS_URL = env("REDIS_URL", "")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "KEY_PREFIX": "pingota",
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "pingota",
+            "TIMEOUT": 300,
+        }
+    }
+
 # --- Apps -------------------------------------------------------------------
 INSTALLED_APPS = [
     "config.apps.MongoAdminConfig",
@@ -142,6 +172,8 @@ LOGOUT_REDIRECT_URL = "/admin/login/"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
 LANGUAGE_CODE = "en-ke"
@@ -178,12 +210,35 @@ FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY", "")
 SESSION_COOKIE_SECURE = env_bool("COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SECURE = env_bool("COOKIE_SECURE", not DEBUG)
 SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_AGE = int(env("SESSION_COOKIE_AGE", str(60 * 60 * 12)))
 SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = "SAMEORIGIN"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+X_FRAME_OPTIONS = "DENY"
 
 # --- Hardening / limits -----------------------------------------------------
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 CSRF_FAILURE_VIEW = "apps.web.admin_views.csrf_failure"
+# Rate limits and lockouts stay on in every real deployment; they are skipped
+# while the test suite runs so unrelated tests do not spend a shared budget.
+SECURITY_LIMITS_ENABLED = env_bool("SECURITY_LIMITS_ENABLED", not TESTING)
+# A site that is not configured for HTTPS must not redirect to it: local
+# compose runs serve plain HTTP on localhost. Production sets PUBLIC_BASE_URL
+# to the https:// domain, which turns the redirect on without extra flags.
+SECURE_SSL_REDIRECT = env_bool(
+    "SECURE_SSL_REDIRECT",
+    not DEBUG and not TESTING and PUBLIC_BASE_URL.startswith("https://"),
+)
+SECURE_REDIRECT_EXEMPT = [r"^healthz/?$", r"^health/?$"]
+SECURE_HSTS_SECONDS = int(
+    env("SECURE_HSTS_SECONDS", "0" if (DEBUG or TESTING) else "31536000")
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG and not TESTING
+)
+SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", not DEBUG and not TESTING)
 
 # --- Scheduler --------------------------------------------------------------
 SCHEDULER_ENABLED = env_bool("SCHEDULER_ENABLED", True)

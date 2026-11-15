@@ -16,6 +16,7 @@ MONGO_AUTO_FIELD = "django_mongodb_backend.fields.ObjectIdAutoField"
 
 
 class MongoAdminConfig(AdminConfig):
+    default_site = "config.admin_site.PingotaAdminSite"
     if os.environ.get("MONGODB_URI"):
         default_auto_field = MONGO_AUTO_FIELD
 

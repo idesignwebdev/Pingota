@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from apps.billing import mpesa, paystack
 from apps.billing.models import Payment, WebhookEvent
-from apps.billing.service import fail_payment, settle_payment
+from apps.billing.service import amount_matches, fail_payment, settle_payment
 from apps.tenants.models import Isp
 
 log = logging.getLogger(__name__)
@@ -137,6 +137,17 @@ def mpesa_callback(request, isp_slug: str):
 
     if str(parsed["result_code"]) != "0":
         fail_payment(payment, parsed.get("description", "cancelled"))
+        return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+    if not amount_matches(payment, parsed.get("amount")):
+        log.error(
+            "mpesa callback amount mismatch for %s: expected %s, got %s",
+            payment.reference,
+            payment.amount,
+            parsed.get("amount"),
+        )
+        # Do not fail the payment: the customer may have paid a different
+        # amount, and an operator needs to reconcile it by hand.
         return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
 
     settle_payment(payment, provider_reference=parsed["receipt"], raw=parsed)

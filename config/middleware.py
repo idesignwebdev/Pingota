@@ -31,6 +31,24 @@ class PlatformAdminGuardMiddleware:
 
 
 class SecurityHeadersMiddleware:
+    # Guests should never be able to find one network's portal in search
+    # results, and every signed-in surface is private.
+    NOINDEX_PREFIXES = (
+        "/admin/",
+        "/django-admin/",
+        "/portal/",
+        "/payments/",
+        "/routers/",
+        "/signup/",
+    )
+    NO_STORE_PREFIXES = (
+        "/admin/",
+        "/django-admin/",
+        "/portal/",
+        "/payments/",
+        "/routers/",
+    )
+
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -46,10 +64,17 @@ class SecurityHeadersMiddleware:
                 "img-src 'self' data:; "
                 "script-src 'self' 'unsafe-inline'; "
                 "connect-src 'self'; "
-                "frame-ancestors 'self'; "
+                "object-src 'none'; "
+                "frame-ancestors 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self' https://checkout.paystack.com"
             )
-        response.setdefault("Referrer-Policy", "same-origin")
-        response.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        response.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.setdefault(
+            "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
+        )
+        if request.path_info.startswith(self.NOINDEX_PREFIXES):
+            response["X-Robots-Tag"] = "noindex, nofollow"
+        if request.path_info.startswith(self.NO_STORE_PREFIXES):
+            response.setdefault("Cache-Control", "no-store")
         return response

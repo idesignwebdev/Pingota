@@ -32,6 +32,11 @@ services:
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017}
       MONGODB_NAME: ${MONGODB_NAME:-pingota}
       DATABASE_URL: ${DATABASE_URL:-}
+      # Shared cache for rate limits and sign-in lockouts across workers.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECURITY_LIMITS_ENABLED: ${SECURITY_LIMITS_ENABLED:-true}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-31536000}
       # First account (platform owner). ISP operators are invited from the panel.
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -50,6 +55,8 @@ services:
     depends_on:
       mongo:
         condition: service_started
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3).status == 200 else 1)"]
       interval: 30s
@@ -67,6 +74,18 @@ services:
       - "27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 5s
       retries: 5

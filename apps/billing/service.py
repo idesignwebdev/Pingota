@@ -72,7 +72,7 @@ def fail_payment(payment: Payment, reason: str) -> Payment:
 
 
 def amount_matches(payment: Payment, amount) -> bool:
-    """Compare in the minor unit so float noise cannot reject a real payment."""
+    """Compare whole shillings, the unit STK Push charges and Daraja echoes."""
     try:
         return int(Decimal(str(amount))) == int(Decimal(str(payment.amount)))
     except (ArithmeticError, ValueError, TypeError):

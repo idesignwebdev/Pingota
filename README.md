@@ -119,6 +119,23 @@ tenant isolation between two ISPs.
 
 ---
 
+## Security
+
+Sign-in is limited per client IP (20 attempts a minute for the panel, 10 for platform
+admin). Four failures add a short pause; six failures lock that account and IP pair for ten
+minutes, and a successful sign-in clears it. Signup, portal checkout, M-Pesa prompts, voucher
+redemption and the router call-home each have their own budget. Checkout and vouchers also cap
+attempts per device MAC, because a hotspot NATs every guest behind one public address.
+
+Set `REDIS_URL` so every worker shares those counters. Without it the in-process cache is used and
+each worker keeps a separate budget. Forwarded client IP headers are trusted only from a
+private/loopback proxy; list a public reverse proxy in `TRUSTED_PROXY_IPS`. With an `https://`
+`PUBLIC_BASE_URL`, the site redirects HTTP to HTTPS, sends one year of HSTS, and marks the panel,
+portal and payment routes `noindex`. `SECURITY_LIMITS_ENABLED=false` is for a controlled load test,
+not for deployment.
+
+---
+
 ## Repository layout
 
 ```

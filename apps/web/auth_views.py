@@ -7,9 +7,30 @@ from __future__ import annotations
 
 from django.contrib.auth.views import LoginView
 
+from core.security import begin_login, finish_login
+
 
 class PanelLoginView(LoginView):
     template_name = "admin/login.html"
+
+    def post(self, request, *args, **kwargs):
+        blocked, account, ip = begin_login(
+            request,
+            retry_url="/admin/login/",
+            retry_label="Back to sign in",
+        )
+        if blocked is not None:
+            return blocked
+
+        response = super().post(request, *args, **kwargs)
+        return finish_login(
+            request,
+            response,
+            account,
+            ip,
+            retry_url="/admin/login/",
+            retry_label="Back to sign in",
+        )
 
     def get_success_url(self) -> str:
         user = self.request.user

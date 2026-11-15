@@ -21,6 +21,7 @@ from apps.billing.models import Payment
 from apps.billing.service import mac_from_request
 from apps.network.models import AccessGrant, Package
 from apps.tenants.models import Isp
+from core.security import enforce_request_limit
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +108,36 @@ def packages(request, isp_slug: str):
 def checkout(request, isp_slug: str, package_id):
     """Create the payment and send the customer to Paystack (or STK prompt)."""
     isp = _resolve(request, isp_slug)
+    mac = mac_from_request(request)
+    # A busy hotspot NATs every guest behind one public address, so the IP cap
+    # is deliberately loose. The per-device cap is what stops one phone (or a
+    # script that rotates MACs) from creating payments in a loop.
+    blocked = enforce_request_limit(
+        request,
+        "checkout_ip",
+        120,
+        60,
+        template="portal/rate_limited.html",
+        context={"isp": isp},
+        retry_url=f"/portal/{isp.slug}/packages/",
+        retry_label="Back to passes",
+    )
+    if blocked is not None:
+        return blocked
+    if mac:
+        blocked = enforce_request_limit(
+            request,
+            "checkout_mac",
+            10,
+            60,
+            identifier=mac,
+            template="portal/rate_limited.html",
+            context={"isp": isp},
+            retry_url=f"/portal/{isp.slug}/packages/",
+            retry_label="Back to passes",
+        )
+        if blocked is not None:
+            return blocked
     # The no-JS form posts to a fixed checkout URL; read the chosen pass from
     # the body first so a radio change works without JavaScript.
     selected_id = request.POST.get("package_id") or package_id
@@ -121,7 +152,6 @@ def checkout(request, isp_slug: str, package_id):
             {"isp": isp, "message": "That pass is no longer available. Choose another pass and try again."},
             status=400,
         )
-    mac = mac_from_request(request)
     if not mac:
         return render(
             request,
@@ -144,6 +174,21 @@ def checkout(request, isp_slug: str, package_id):
             {"isp": isp, "message": "Enter the M-Pesa number to receive the payment prompt."},
             status=400,
         )
+    if provider == "mpesa":
+        # One number must not be used as an STK-prompt target by a script.
+        blocked = enforce_request_limit(
+            request,
+            "mpesa_stk",
+            3,
+            300,
+            identifier=phone,
+            template="portal/rate_limited.html",
+            context={"isp": isp},
+            retry_url=f"/portal/{isp.slug}/packages/",
+            retry_label="Back to passes",
+        )
+        if blocked is not None:
+            return blocked
 
     payment = Payment.objects.create(
         isp=isp,
@@ -218,6 +263,32 @@ def redeem_voucher(request, isp_slug: str):
 
     isp = _resolve(request, isp_slug)
     mac = mac_from_request(request)
+    blocked = enforce_request_limit(
+        request,
+        "voucher_ip",
+        120,
+        300,
+        template="portal/rate_limited.html",
+        context={"isp": isp},
+        retry_url=f"/portal/{isp.slug}/packages/",
+        retry_label="Back to passes",
+    )
+    if blocked is not None:
+        return blocked
+    if mac:
+        blocked = enforce_request_limit(
+            request,
+            "voucher_mac",
+            10,
+            300,
+            identifier=mac,
+            template="portal/rate_limited.html",
+            context={"isp": isp},
+            retry_url=f"/portal/{isp.slug}/packages/",
+            retry_label="Back to passes",
+        )
+        if blocked is not None:
+            return blocked
     if not mac:
         return render(
             request,
