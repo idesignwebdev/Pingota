@@ -41,6 +41,20 @@ def activate_grant(grant: AccessGrant, *, extend: bool = False) -> AccessGrant:
     ``extend`` appends the package duration to an existing live grant instead
     of restarting the clock — used when a customer buys a second pass.
     """
+    if grant.isp.service_suspended:
+        # A callback can arrive after the trial or plan ends. Keep the payment
+        # record, but do not put the guest online for a paused network.
+        grant.revoked_reason = "network paused"
+        grant.save(update_fields=["revoked_reason"])
+        _log(
+            grant.isp,
+            "payment_error",
+            "Network paused; access was held",
+            "warn",
+            grant,
+        )
+        raise ProvisioningDeferred("Network paused")
+
     router = grant.router or pick_router(grant.isp)
     if router is None:
         # Deliberately stays "active": the sweeper retries it. The customer has
@@ -129,12 +143,45 @@ def revoke_grant(grant: AccessGrant, reason: str, *, keep_row: bool = True) -> N
             _log(grant.isp, "router_error", f"{grant.router.name}: {exc}", "error", grant, grant.router)
             # The router-side timer still expires on its own, so do not block
             # the database transition on an unreachable router.
-    event = "revoked" if reason == "revoked" else "expired"
+    is_revocation = reason in {"revoked", "network paused"}
+    event = "revoked" if is_revocation else "expired"
     grant.revoked_reason = reason[:120]
     if keep_row:
-        grant.state = "revoked" if reason == "revoked" else "expired"
+        grant.state = "revoked" if is_revocation else "expired"
         grant.save(update_fields=["state", "revoked_reason"])
     _log(grant.isp, event, reason, "info" if event == "expired" else "warn", grant, grant.router)
+
+
+def revoke_suspended_grants(limit: int = 200) -> int:
+    """Close live guest access for every paused network.
+
+    The scheduler calls this even when nobody opens the panel, so a trial that
+    ends at 03:00 stops serving guests without waiting for a request.
+    """
+    from django.db.models import Q
+
+    from apps.tenants.models import Isp
+
+    now = timezone.now()
+    suspended_ids = list(
+        Isp.objects.filter(
+            Q(status="suspended")
+            | Q(plan="trial", trial_ends_at__lte=now)
+            | Q(plan_ends_at__lte=now)
+        ).values_list("pk", flat=True)
+    )
+    if not suspended_ids:
+        return 0
+
+    grants = (
+        AccessGrant.objects.filter(state="active", isp_id__in=suspended_ids)
+        .select_related("customer", "router", "isp")[:limit]
+    )
+    count = 0
+    for grant in grants:
+        revoke_grant(grant, "network paused")
+        count += 1
+    return count
 
 
 def expire_due_grants(now=None) -> int:

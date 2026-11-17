@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
+from functools import wraps
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -28,8 +29,10 @@ log = logging.getLogger(__name__)
 
 def _isp(slug: str | None) -> Isp:
     if slug:
-        return get_object_or_404(Isp, slug=slug, status="active")
-    isp = Isp.objects.filter(slug=settings.PORTAL_SLUG, status="active").first()
+        # Status is checked by ``portal_access`` so a paused network can
+        # explain itself instead of looking like a missing slug.
+        return get_object_or_404(Isp, slug=slug)
+    isp = Isp.objects.filter(slug=settings.PORTAL_SLUG).first()
     if isp is None and Isp.objects.filter(status="active").count() == 1:
         # /portal/ is a convenience entry point for single-network installs.
         isp = Isp.objects.filter(status="active").first()
@@ -44,6 +47,36 @@ def _resolve(request, isp_slug=None) -> Isp:
     return isp
 
 
+def _suspended_page(request, isp: Isp):
+    return render(request, "portal/suspended.html", {"isp": isp}, status=403)
+
+
+def portal_access(view):
+    """Resolve the tenant once, then stop every guest service when paused."""
+
+    @wraps(view)
+    def wrapper(request, isp_slug=None, **kwargs):
+        isp = _resolve(request, isp_slug)
+        if isp.service_suspended:
+            return _suspended_page(request, isp)
+        return view(request, isp, **kwargs)
+
+    return wrapper
+
+
+def portal_access_json(view):
+    """Same guard for the poller, which needs JSON rather than an HTML page."""
+
+    @wraps(view)
+    def wrapper(request, isp_slug=None, **kwargs):
+        isp = _resolve(request, isp_slug)
+        if isp.service_suspended:
+            return JsonResponse({"status": "paused"}, status=503)
+        return view(request, isp, **kwargs)
+
+    return wrapper
+
+
 def _live_grant(isp: Isp, mac: str):
     if not mac:
         return None
@@ -56,8 +89,8 @@ def _live_grant(isp: Isp, mac: str):
     )
 
 
-def index(request, isp_slug: str | None = None):
-    isp = _resolve(request, isp_slug)
+@portal_access
+def index(request, isp):
     mac = mac_from_request(request)
     if mac:
         request.session["portal_mac"] = mac
@@ -78,8 +111,8 @@ def index(request, isp_slug: str | None = None):
     )
 
 
-def packages(request, isp_slug: str):
-    isp = _resolve(request, isp_slug)
+@portal_access
+def packages(request, isp):
     mac = mac_from_request(request)
     selected = None
     if request.method == "POST":
@@ -91,7 +124,7 @@ def packages(request, isp_slug: str):
             request.session["pending_provider"] = request.POST.get("provider") or "paystack"
             # Stay in this POST so the no-JS form can create the payment
             # without a redirect to a POST-only URL.
-            return checkout(request, isp.slug, selected.id)
+            return _checkout_impl(request, isp, selected.id)
     return render(
         request,
         "portal/packages.html",
@@ -104,10 +137,14 @@ def packages(request, isp_slug: str):
     )
 
 
+@portal_access
 @require_POST
-def checkout(request, isp_slug: str, package_id):
+def checkout(request, isp, package_id):
     """Create the payment and send the customer to Paystack (or STK prompt)."""
-    isp = _resolve(request, isp_slug)
+    return _checkout_impl(request, isp, package_id)
+
+
+def _checkout_impl(request, isp, package_id):
     mac = mac_from_request(request)
     # A busy hotspot NATs every guest behind one public address, so the IP cap
     # is deliberately loose. The per-device cap is what stops one phone (or a
@@ -256,12 +293,12 @@ def checkout(request, isp_slug: str, package_id):
         )
 
 
+@portal_access
 @require_POST
-def redeem_voucher(request, isp_slug: str):
+def redeem_voucher(request, isp):
     """A counter code instead of a payment. Same provisioning path."""
     from apps.network.vouchers import redeem, VoucherError
 
-    isp = _resolve(request, isp_slug)
     mac = mac_from_request(request)
     blocked = enforce_request_limit(
         request,
@@ -316,8 +353,8 @@ def redeem_voucher(request, isp_slug: str):
     )
 
 
-def status(request, isp_slug: str, reference: str):
-    isp = _resolve(request, isp_slug)
+@portal_access
+def status(request, isp, reference: str):
     payment = get_object_or_404(Payment, reference=reference, isp=isp)
     # Prefer the grant created by this payment so an expired pass shows as
     # ended instead of looking like it is still activating.
@@ -331,9 +368,9 @@ def status(request, isp_slug: str, reference: str):
     )
 
 
+@portal_access_json
 @require_GET
-def status_state(request, isp_slug: str, reference: str):
-    isp = _resolve(request, isp_slug)
+def status_state(request, isp, reference: str):
     payment = get_object_or_404(Payment, reference=reference, isp=isp)
     grant = payment.grant or (
         _live_grant(isp, payment.customer.mac_address) if payment.customer else None
@@ -356,9 +393,9 @@ def status_state(request, isp_slug: str, reference: str):
     )
 
 
+@portal_access
 @require_GET
-def my_pass(request, isp_slug: str):
-    isp = _resolve(request, isp_slug)
+def my_pass(request, isp):
     mac = mac_from_request(request)
     grant = _live_grant(isp, mac)
     recent = (

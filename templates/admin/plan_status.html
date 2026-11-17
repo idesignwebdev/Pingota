@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Plan payment - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:560px; padding-top:64px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card stack-24"
+       {% if payment.status == "pending" %}data-plan-status data-status-url="{% url 'panel:plan_status_state' payment.reference %}"{% endif %}>
+    {% if payment.status == "paid" %}
+      <div>
+        <h1 style="font-size:1.5rem; margin:0 0 4px">Plan active</h1>
+        <p class="small" style="margin:0">
+          {{ plan.name }} for {{ isp.name }} runs until {{ payment.period_end|date:"d M Y, H:i" }}.
+        </p>
+      </div>
+      {% if isp.manually_suspended %}
+        <div class="alert alert--warn">
+          <span class="alert__label">Network paused</span>
+          The payment is recorded, but Pingota has paused this network. Email support and we will restore access.
+        </div>
+        <a class="btn btn--primary btn--block" href="mailto:idesignweb.co.ke@gmail.com?subject=Restore%20{{ isp.name|urlencode }}">Email support</a>
+      {% else %}
+        <p style="margin:0">The panel, guest portal and router access are open again.</p>
+        <a class="btn btn--primary btn--block" href="/admin/">Open the panel</a>
+      {% endif %}
+    {% elif payment.status == "pending" %}
+      <div>
+        <h1 style="font-size:1.5rem; margin:0 0 4px">Confirming your payment</h1>
+        {% if payment.provider == "mpesa" %}
+          <p class="small" style="margin:0">Enter your M-Pesa PIN on the phone. This page updates when Safaricom confirms the payment.</p>
+        {% else %}
+          <p class="small" style="margin:0">Finish the payment in the Paystack window. This page updates when the payment is confirmed.</p>
+        {% endif %}
+      </div>
+      <div class="alert alert--info">
+        <span class="alert__label">In progress</span>
+        {{ plan_currency }} {{ payment.amount|floatformat:"0g" }} for {{ plan.name }}. Keep this page open or come back to it later; the payment is safe either way.
+      </div>
+      <a class="btn btn--secondary btn--block" href="{% url 'panel:plan_checkout' plan.code %}">Start a different payment</a>
+    {% else %}
+      <div>
+        <h1 style="font-size:1.5rem; margin:0 0 4px">Payment did not complete</h1>
+        <p class="small" style="margin:0">The payment was cancelled or declined, and no plan was added.</p>
+      </div>
+      <a class="btn btn--primary btn--block" href="{% url 'panel:plan_checkout' plan.code %}">Try again</a>
+    {% endif %}
+
+    <div class="row" style="gap:16px; flex-wrap:wrap">
+      {% if not isp.service_suspended %}<a class="small" href="/admin/">Back to the panel</a>{% endif %}
+      <a class="small" href="/pricing/">Compare plans</a>
+    </div>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}
+{% if payment.status == "pending" %}<script src="{% static 'js/plan-status.js' %}" defer></script>{% endif %}
+{% endblock %}

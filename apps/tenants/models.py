@@ -28,11 +28,16 @@ class Isp(UUIDModel):
     slug = models.SlugField(max_length=60, unique=True)
     phone = models.CharField(max_length=24, blank=True)
     currency = models.CharField(max_length=8, default="KES")
-    plan = models.CharField(max_length=16, choices=PLAN_CHOICES, default="trial")
+    plan = models.CharField(max_length=40, choices=PLAN_CHOICES, default="trial")
     trial_ends_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text="End of the self-service trial. Blank means no trial expiry (legacy and demo networks).",
+    )
+    plan_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="End of the paid hosting plan. Blank means no expiry (legacy and demo networks).",
     )
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="active")
 
@@ -62,6 +67,37 @@ class Isp(UUIDModel):
             and self.trial_ends_at is not None
             and self.trial_ends_at <= timezone.now()
         )
+
+    @property
+    def plan_has_ended(self) -> bool:
+        """True only for a dated paid plan; blank dates stay grandfathered."""
+        return self.plan_ends_at is not None and self.plan_ends_at <= timezone.now()
+
+    @property
+    def manually_suspended(self) -> bool:
+        """A platform decision, not something a payment should silently undo."""
+        return self.status == "suspended"
+
+    @property
+    def service_suspended(self) -> bool:
+        """The single switch every service surface checks."""
+        return self.manually_suspended or self.trial_has_ended or self.plan_has_ended
+
+    @property
+    def suspension_reason(self) -> str:
+        if self.manually_suspended:
+            return "manual"
+        if self.trial_has_ended:
+            return "trial"
+        if self.plan_has_ended:
+            return "plan"
+        return ""
+
+    @property
+    def plan_label(self) -> str:
+        """The display name of the current plan, including custom plan codes."""
+        plan = SubscriptionPlan.objects.filter(code=self.plan).first()
+        return plan.name if plan else self.get_plan_display()
 
 
 class Router(UUIDModel):
@@ -270,3 +306,8 @@ class SubscriptionPlan(UUIDModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def period_days(self) -> int:
+        """Days added by one payment. Kept here so billing cannot drift from the row."""
+        return 365 if self.interval == "yearly" else 30

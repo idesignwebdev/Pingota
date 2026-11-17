@@ -7,17 +7,25 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.accounts.models import Membership
 from apps.billing import paystack
-from apps.billing.models import Payment, WebhookEvent
-from apps.billing.service import settle_payment
+from apps.billing.models import Payment, PlanPayment, WebhookEvent
+from apps.billing.service import settle_payment, settle_plan_payment
 from apps.network.models import AccessGrant, Customer, Package
-from apps.tenants.models import Isp, PaystackConfig, Router
+from apps.network.provisioning import (
+    ProvisioningDeferred,
+    activate_grant,
+    revoke_suspended_grants,
+)
+from apps.tenants.models import Isp, PaystackConfig, Router, SubscriptionPlan
 
 #: A real Fernet key. The key validator rejects placeholder words such as
 #: "test", so tests must supply something the production path would accept.
@@ -165,6 +173,21 @@ class OnboardingTests(TestCase):
 
     def test_unknown_token_is_rejected(self):
         self.assertEqual(self.client.get("/routers/not-a-real-token/report/").status_code, 404)
+
+    def test_report_is_refused_when_the_trial_has_ended(self):
+        from apps.network import onboarding
+
+        self.isp.plan = "trial"
+        self.isp.trial_ends_at = timezone.now() - timedelta(minutes=5)
+        self.isp.save(update_fields=["plan", "trial_ends_at"])
+        router = Router(isp=self.isp, name="AP1")
+        onboarding.provision_identity(router)
+        router.save()
+
+        response = self.client.get(f"/routers/{router.install_token}/report/")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["error"], "network paused")
 
 
 class MpesaCallbackTests(TestCase):
@@ -812,3 +835,394 @@ class PaystackMatchingTests(TestCase):
                 },
             )
         )
+
+
+@override_settings(
+    PAYSTACK_SECRET_KEY="sk_platform",
+    PAYSTACK_WEBHOOK_SECRET="whsec_platform",
+    MPESA_PLATFORM_SHORTCODE="174379",
+    MPESA_PLATFORM_CONSUMER_KEY="platform-key",
+    MPESA_PLATFORM_CONSUMER_SECRET="platform-secret",
+    MPESA_PLATFORM_PASSKEY="platform-passkey",
+)
+class PlanCheckoutTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(
+            name="Net",
+            slug="net",
+            plan="trial",
+            trial_ends_at=timezone.now() - timedelta(hours=1),
+        )
+        self.user = get_user_model().objects.create_user(
+            username="ops", password="operator-pass-123", email="ops@example.com"
+        )
+        Membership.objects.create(user=self.user, isp=self.isp, role="owner")
+        self.plan = SubscriptionPlan.objects.create(
+            code="growth",
+            name="Growth",
+            monthly_price=Decimal("1000"),
+            interval="monthly",
+            max_routers=3,
+        )
+
+    def create_payment(self, **overrides):
+        data = {
+            "isp": self.isp,
+            "plan": self.plan,
+            "provider": "paystack",
+            "reference": "plan-test",
+            "amount": Decimal("1000"),
+            "currency": "KES",
+        }
+        data.update(overrides)
+        return PlanPayment.objects.create(**data)
+
+    def platform_signature(self, raw: bytes) -> str:
+        timestamp = int(time.time())
+        digest = hmac.new(
+            b"whsec_platform",
+            str(timestamp).encode() + b"." + raw,
+            hashlib.sha512,
+        ).hexdigest()
+        return f"t={timestamp},v1=whk_platform:{digest}"
+
+    def post_plan_webhook(self, payload):
+        raw = json.dumps(payload).encode()
+        return self.client.post(
+            "/payments/plan/webhook/paystack/",
+            data=raw,
+            content_type="application/json",
+            headers={"paystack-signature": self.platform_signature(raw)},
+        )
+
+    def verified(self, payment, **overrides):
+        data = {
+            "id": 9001,
+            "reference": payment.reference,
+            "status": "success",
+            "amount": int(payment.amount * 100),
+            "currency": payment.currency,
+        }
+        data.update(overrides)
+        return data
+
+    def test_anonymous_checkout_goes_to_sign_in_first(self):
+        response = self.client.get("/admin/plan/growth/")
+        self.assertRedirects(
+            response,
+            "/admin/login/?next=/admin/plan/growth/",
+            fetch_redirect_response=False,
+        )
+
+    def test_checkout_page_offers_both_rails(self):
+        self.client.force_login(self.user)
+        response = self.client.get("/admin/plan/growth/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pay for Growth")
+        self.assertContains(response, "Card or bank")
+        self.assertContains(response, "M-Pesa")
+        self.assertContains(response, "1,000")
+
+    @mock.patch("apps.web.plan_views.paystack.initialize_platform")
+    def test_paystack_starts_a_platform_plan_payment(self, initialize):
+        initialize.return_value = {"authorization_url": "https://checkout.paystack.com/plan"}
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/admin/plan/growth/",
+            {"provider": "paystack", "email": "ops@example.com"},
+        )
+
+        self.assertRedirects(
+            response,
+            "https://checkout.paystack.com/plan",
+            fetch_redirect_response=False,
+        )
+        payment = PlanPayment.objects.get()
+        self.assertEqual(payment.isp, self.isp)
+        self.assertEqual(payment.plan, self.plan)
+        self.assertEqual(payment.amount, Decimal("1000"))
+        self.assertEqual(payment.status, "pending")
+        initialize.assert_called_once()
+
+    @mock.patch("apps.web.plan_views.mpesa.stk_push_platform")
+    def test_mpesa_starts_a_prompt_and_records_the_checkout(self, stk_push):
+        stk_push.return_value = {"CheckoutRequestID": "ws_CO_123"}
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/admin/plan/growth/",
+            {"provider": "mpesa", "phone": "0712 345 678"},
+        )
+
+        payment = PlanPayment.objects.get()
+        self.assertRedirects(
+            response,
+            f"/admin/plan/status/{payment.reference}/",
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(payment.provider, "mpesa")
+        self.assertEqual(payment.provider_reference, "ws_CO_123")
+        self.assertEqual(payment.phone, "254712345678")
+
+    @mock.patch("apps.billing.views.paystack.verify_platform")
+    def test_platform_webhook_activates_the_plan_once(self, verify):
+        payment = self.create_payment()
+        verify.return_value = self.verified(payment)
+        payload = {
+            "event": "charge.success",
+            "data": {"id": 9001, "reference": payment.reference},
+        }
+
+        response = self.post_plan_webhook(payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "paid")
+        payment.refresh_from_db()
+        self.isp.refresh_from_db()
+        self.assertEqual(payment.status, "paid")
+        self.assertIsNotNone(payment.period_end)
+        self.assertEqual(self.isp.plan, "growth")
+        self.assertAlmostEqual(
+            self.isp.plan_ends_at,
+            timezone.now() + timedelta(days=30),
+            delta=timedelta(seconds=5),
+        )
+        self.assertEqual(WebhookEvent.objects.filter(provider="paystack").count(), 1)
+
+        # A replayed delivery must not add a second period.
+        end = self.isp.plan_ends_at
+        verify.return_value = self.verified(payment)
+        self.post_plan_webhook(payload)
+        self.isp.refresh_from_db()
+        self.assertEqual(self.isp.plan_ends_at, end)
+
+    def test_bad_platform_signature_is_refused(self):
+        payment = self.create_payment()
+        raw = json.dumps(
+            {"event": "charge.success", "data": {"reference": payment.reference}}
+        ).encode()
+        response = self.client.post(
+            "/payments/plan/webhook/paystack/",
+            data=raw,
+            content_type="application/json",
+            headers={"paystack-signature": "t=1,v1=whk_platform:" + "0" * 128},
+        )
+        self.assertEqual(response.status_code, 401)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "pending")
+
+    @mock.patch("apps.billing.views.paystack.verify_platform")
+    def test_plan_callback_verifies_and_opens_the_status_page(self, verify):
+        payment = self.create_payment()
+        verify.return_value = self.verified(payment)
+
+        response = self.client.get(
+            f"/payments/plan/callback/?reference={payment.reference}"
+        )
+
+        self.assertRedirects(
+            response,
+            f"/admin/login/?next=/admin/plan/status/{payment.reference}/",
+            fetch_redirect_response=False,
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "paid")
+
+    def test_renewal_extends_from_the_existing_end_date(self):
+        future = timezone.now() + timedelta(days=10)
+        self.isp.plan = "growth"
+        self.isp.plan_ends_at = future
+        self.isp.save(update_fields=["plan", "plan_ends_at"])
+        payment = self.create_payment(reference="plan-renew")
+
+        settle_plan_payment(payment)
+
+        self.isp.refresh_from_db()
+        self.assertAlmostEqual(
+            self.isp.plan_ends_at,
+            future + timedelta(days=30),
+            delta=timedelta(seconds=5),
+        )
+
+    def test_payment_does_not_lift_a_manual_suspension(self):
+        self.isp.status = "suspended"
+        self.isp.save(update_fields=["status"])
+        payment = self.create_payment(reference="plan-paused")
+
+        settle_plan_payment(payment)
+
+        self.isp.refresh_from_db()
+        self.assertEqual(self.isp.status, "suspended")
+        self.assertTrue(self.isp.service_suspended)
+        self.assertEqual(self.isp.plan, "growth")
+
+    def test_other_isp_cannot_read_a_plan_payment(self):
+        payment = self.create_payment(reference="plan-private")
+        other = Isp.objects.create(name="Other", slug="other")
+        other_user = get_user_model().objects.create_user(
+            username="other", password="other-pass-123"
+        )
+        Membership.objects.create(user=other_user, isp=other, role="owner")
+        self.client.force_login(other_user)
+
+        self.assertEqual(
+            self.client.get(f"/admin/plan/status/{payment.reference}/").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(f"/admin/plan/status/{payment.reference}/state/").status_code,
+            404,
+        )
+
+    def test_mpesa_callback_checks_the_checkout_and_amount(self):
+        payment = self.create_payment(
+            reference="plan-mpesa", provider="mpesa", provider_reference="ws_CO_123"
+        )
+        payload = {
+            "Body": {
+                "stkCallback": {
+                    "ResultCode": 0,
+                    "ResultDesc": "The service request is processed successfully.",
+                    "CheckoutRequestID": "ws_CO_other",
+                    "CallbackMetadata": {
+                        "Item": [
+                            {"Name": "Amount", "Value": 1000},
+                            {"Name": "MpesaReceiptNumber", "Value": "RCPT123"},
+                            {"Name": "PhoneNumber", "Value": 254712345678},
+                        ]
+                    },
+                }
+            }
+        }
+
+        self.client.post(
+            f"/payments/plan/mpesa/callback/{payment.reference}/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "pending")
+
+        payload["Body"]["stkCallback"]["CheckoutRequestID"] = "ws_CO_123"
+        payload["Body"]["stkCallback"]["CallbackMetadata"]["Item"][0]["Value"] = 1
+        self.client.post(
+            f"/payments/plan/mpesa/callback/{payment.reference}/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "pending")
+
+        payload["Body"]["stkCallback"]["CallbackMetadata"]["Item"][0]["Value"] = 1000
+        self.client.post(
+            f"/payments/plan/mpesa/callback/{payment.reference}/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        payment.refresh_from_db()
+        self.isp.refresh_from_db()
+        self.assertEqual(payment.status, "paid")
+        self.assertEqual(self.isp.plan, "growth")
+
+    def test_pending_status_page_polls_and_returns_json(self):
+        payment = self.create_payment(reference="plan-pending")
+        self.client.force_login(self.user)
+
+        response = self.client.get(f"/admin/plan/status/{payment.reference}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Confirming your payment")
+        self.assertContains(response, f"/admin/plan/status/{payment.reference}/state/")
+
+        state = self.client.get(f"/admin/plan/status/{payment.reference}/state/")
+        self.assertEqual(state.json()["status"], "pending")
+
+    def test_paid_status_page_opens_the_panel(self):
+        end = timezone.now() + timedelta(days=30)
+        self.isp.plan = "growth"
+        self.isp.plan_ends_at = end
+        self.isp.save(update_fields=["plan", "plan_ends_at"])
+        payment = self.create_payment(
+            reference="plan-paid",
+            status="paid",
+            period_start=timezone.now(),
+            period_end=end,
+            paid_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(f"/admin/plan/status/{payment.reference}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Plan active")
+        self.assertContains(response, "Growth for Net")
+        self.assertContains(response, "Open the panel")
+
+    @override_settings(
+        PAYSTACK_SECRET_KEY="",
+        MPESA_PLATFORM_SHORTCODE="",
+        MPESA_PLATFORM_CONSUMER_KEY="",
+        MPESA_PLATFORM_CONSUMER_SECRET="",
+        MPESA_PLATFORM_PASSKEY="",
+    )
+    def test_checkout_explains_when_no_rail_is_configured(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/admin/plan/growth/")
+
+        self.assertContains(response, "Payments unavailable")
+        self.assertNotContains(response, "Send payment prompt")
+
+    def test_manual_suspension_blocks_a_new_plan_payment(self):
+        self.isp.status = "suspended"
+        self.isp.save(update_fields=["status"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/admin/plan/growth/",
+            {"provider": "mpesa", "phone": "0712 345 678"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Contact support", status_code=403)
+        self.assertEqual(PlanPayment.objects.count(), 0)
+
+
+class SuspensionSweepTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(
+            name="Net",
+            slug="net",
+            plan="trial",
+            trial_ends_at=timezone.now() - timedelta(minutes=5),
+        )
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.customer = Customer.objects.create(
+            isp=self.isp, mac_address="A4:5E:60:1C:92:0B"
+        )
+
+    def grant(self):
+        return AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            state="active",
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+    def test_sweep_revokes_live_guest_access(self):
+        grant = self.grant()
+        self.assertEqual(revoke_suspended_grants(), 1)
+        grant.refresh_from_db()
+        self.assertEqual(grant.state, "revoked")
+        self.assertEqual(grant.revoked_reason, "network paused")
+
+    def test_provisioning_is_deferred_for_a_paused_network(self):
+        grant = self.grant()
+        with self.assertRaises(ProvisioningDeferred):
+            activate_grant(grant)
+        grant.refresh_from_db()
+        self.assertEqual(grant.state, "active")
+        self.assertEqual(grant.revoked_reason, "network paused")

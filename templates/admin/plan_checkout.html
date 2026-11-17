@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Pay for {{ plan.name }} - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:720px; padding-top:56px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card card--lead stack-24">
+    <div>
+      <p class="small muted" style="margin:0">{{ isp.name }}</p>
+      <h1 style="font-size:1.6rem; margin:4px 0">Pay for {{ plan.name }}</h1>
+      <p style="margin:0">
+        {{ plan_currency }} {{ plan.monthly_price|floatformat:"0g" }}
+        <span class="muted">per {{ plan.get_interval_display|lower }} · up to {{ plan.max_routers }} router{{ plan.max_routers|pluralize }}</span>
+      </p>
+    </div>
+
+    {% if isp.trial_has_ended %}
+      <div class="alert alert--warn">
+        <span class="alert__label">Trial ended</span>
+        The trial ended on {{ isp.trial_ends_at|date:"d M Y, H:i" }}. Paying switches the panel, guest portal and router access back on.
+      </div>
+    {% elif isp.plan_has_ended %}
+      <div class="alert alert--warn">
+        <span class="alert__label">Plan ended</span>
+        The plan ended on {{ isp.plan_ends_at|date:"d M Y, H:i" }}. Paying switches the panel, guest portal and router access back on.
+      </div>
+    {% elif isp.plan_ends_at %}
+      <div class="alert alert--info">
+        <span class="alert__label">Current plan</span>
+        This plan runs until {{ isp.plan_ends_at|date:"d M Y, H:i" }}. Paying now adds another {{ plan.period_days }} days from that date.
+      </div>
+    {% endif %}
+
+    {% if error %}
+      <div class="alert alert--err" role="alert">
+        <span class="alert__label">Payment not started</span>
+        {{ error }}
+      </div>
+    {% endif %}
+
+    {% if isp.manually_suspended %}
+      <a class="btn btn--primary btn--block" href="mailto:idesignweb.co.ke@gmail.com?subject=Restore%20{{ isp.name|urlencode }}">Email support</a>
+    {% elif not paystack_enabled and not mpesa_enabled %}
+      <div class="alert alert--err">
+        <span class="alert__label">Payments unavailable</span>
+        Card and M-Pesa payments are not set up right now. Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> and we will renew the plan with you.
+      </div>
+    {% else %}
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:24px">
+        {% if paystack_enabled %}
+        <form method="post" action="{{ request.path }}" class="stack-16" data-busy="Opening Paystack">
+          {% csrf_token %}
+          <input type="hidden" name="provider" value="paystack">
+          <h2 style="font-size:1rem; margin:0">Card or bank</h2>
+          <div>
+            <label for="plan-email">Receipt email</label>
+            <input id="plan-email" name="email" type="email" autocomplete="email" required
+                   value="{{ email }}" {% if field_errors.email %}aria-invalid="true" aria-describedby="plan-email-error"{% endif %}>
+            {% if field_errors.email %}
+              <span class="field-error" id="plan-email-error" role="alert">{{ field_errors.email }}</span>
+            {% endif %}
+          </div>
+          <button class="btn btn--primary btn--block" type="submit">Pay {{ plan_currency }} {{ plan.monthly_price|floatformat:"0g" }}</button>
+        </form>
+        {% endif %}
+
+        {% if mpesa_enabled %}
+        <form method="post" action="{{ request.path }}" class="stack-16" data-busy="Sending prompt">
+          {% csrf_token %}
+          <input type="hidden" name="provider" value="mpesa">
+          <h2 style="font-size:1rem; margin:0">M-Pesa</h2>
+          <div>
+            <label for="plan-phone">M-Pesa number</label>
+            <input id="plan-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required
+                   placeholder="0712 345 678" value="{{ phone }}" {% if field_errors.phone %}aria-invalid="true" aria-describedby="plan-phone-error"{% endif %}>
+            {% if field_errors.phone %}
+              <span class="field-error" id="plan-phone-error" role="alert">{{ field_errors.phone }}</span>
+            {% else %}
+              <p class="help">Safaricom sends the payment prompt to this number.</p>
+            {% endif %}
+          </div>
+          <button class="btn btn--secondary btn--block" type="submit">Send payment prompt</button>
+        </form>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="row" style="gap:16px; flex-wrap:wrap">
+      {% if not isp.service_suspended %}<a class="small" href="/admin/">Back to the panel</a>{% endif %}
+      <a class="small" href="/pricing/">Compare plans</a>
+    </div>
+  </div>
+</main>
+{% endblock %}

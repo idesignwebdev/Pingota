@@ -51,7 +51,7 @@ def current_isp(request):
 
 
 def panel_required(view):
-    """Tenant-panel guard: membership first, then trial state.
+    """Tenant-panel guard: membership first, then service state.
 
     A superuser without a membership is the platform owner, not an ISP
     operator. Send them to Django admin instead of showing the tenant 404.
@@ -66,8 +66,15 @@ def panel_required(view):
             if request.user.is_superuser:
                 return redirect("/django-admin/")
             raise Http404("This account is not attached to a network. Ask the platform owner to invite it.")
-        if membership.isp.trial_has_ended:
-            return render(request, "admin/trial_ended.html", {"isp": membership.isp}, status=403)
+        if membership.isp.service_suspended:
+            from apps.web.plan_views import purchasable_plans
+
+            return render(
+                request,
+                "admin/trial_ended.html",
+                {"isp": membership.isp, "plans": purchasable_plans()},
+                status=403,
+            )
         return view(request, *args, **kwargs)
 
     return wrapper

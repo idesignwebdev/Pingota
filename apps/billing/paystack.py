@@ -71,11 +71,22 @@ def new_reference(prefix: str = "pg") -> str:
     return f"{prefix}-{secrets.token_hex(8)}"
 
 
-def initialize(payment, *, email: str, callback_url: str, metadata: dict | None = None) -> dict:
+def platform_configured() -> bool:
+    return bool(settings.PAYSTACK_SECRET_KEY)
+
+
+def _initialize(
+    payment,
+    *,
+    secret: str,
+    email: str,
+    callback_url: str,
+    metadata: dict | None = None,
+    subaccount: str = "",
+) -> dict:
     """Ask Paystack for a checkout URL. Amount is sent in the minor unit."""
-    secret = _secret_for(payment.isp)
     if not secret:
-        raise PaystackError("Paystack is not configured for this ISP")
+        raise PaystackError("Paystack is not configured")
 
     payload = {
         "email": email,
@@ -83,9 +94,8 @@ def initialize(payment, *, email: str, callback_url: str, metadata: dict | None 
         "currency": payment.currency,
         "reference": payment.reference,
         "callback_url": callback_url,
-        "metadata": {"isp": payment.isp.slug, "package": payment.package.name, **(metadata or {})},
+        "metadata": {"isp": payment.isp.slug, **(metadata or {})},
     }
-    subaccount = _subaccount_for(payment.isp)
     if subaccount:
         payload["subaccount"] = subaccount
 
@@ -101,8 +111,30 @@ def initialize(payment, *, email: str, callback_url: str, metadata: dict | None 
     return body["data"]
 
 
-def verify(reference: str, isp) -> dict:
-    secret = _secret_for(isp)
+def initialize(payment, *, email: str, callback_url: str, metadata: dict | None = None) -> dict:
+    """Guest pass checkout: the ISP's own key first, then the platform key."""
+    return _initialize(
+        payment,
+        secret=_secret_for(payment.isp),
+        email=email,
+        callback_url=callback_url,
+        metadata={"package": payment.package.name, **(metadata or {})},
+        subaccount=_subaccount_for(payment.isp),
+    )
+
+
+def initialize_platform(payment, *, email: str, callback_url: str, metadata: dict | None = None) -> dict:
+    """Hosting-plan checkout: always the platform account, never a tenant key."""
+    return _initialize(
+        payment,
+        secret=settings.PAYSTACK_SECRET_KEY,
+        email=email,
+        callback_url=callback_url,
+        metadata={"plan": payment.plan.code, **(metadata or {})},
+    )
+
+
+def _verify(reference: str, secret: str) -> dict:
     resp = httpx.get(
         f"{settings.PAYSTACK_BASE_URL}/transaction/verify/{reference}",
         headers={"Authorization": f"Bearer {secret}"},
@@ -112,6 +144,14 @@ def verify(reference: str, isp) -> dict:
     if resp.status_code >= 400 or not body.get("status"):
         raise PaystackError(body.get("message") or "Verification failed")
     return body["data"]
+
+
+def verify(reference: str, isp) -> dict:
+    return _verify(reference, _secret_for(isp))
+
+
+def verify_platform(reference: str) -> dict:
+    return _verify(reference, settings.PAYSTACK_SECRET_KEY)
 
 
 def _parse_signature_header(header: str) -> tuple[int | None, list[str]]:
@@ -158,6 +198,22 @@ def valid_signature(raw_body: bytes, headers, isp) -> bool:
 
     legacy_signature = headers.get("x-paystack-signature") or ""
     secret = _secret_for(isp)
+    if legacy_signature and secret:
+        expected = hmac.new(secret.encode(), raw_body, hashlib.sha512).hexdigest()
+        if hmac.compare_digest(expected, legacy_signature):
+            return True
+    return False
+
+
+def valid_platform_signature(raw_body: bytes, headers) -> bool:
+    """Validate a hosting-plan delivery against the platform account only."""
+    signing_secrets = [secret for secret in (settings.PAYSTACK_WEBHOOK_SECRET,) if secret]
+    new_header = headers.get("paystack-signature") or headers.get("Paystack-Signature") or ""
+    if new_header and _valid_new_signature(raw_body, new_header, signing_secrets):
+        return True
+
+    legacy_signature = headers.get("x-paystack-signature") or ""
+    secret = settings.PAYSTACK_SECRET_KEY
     if legacy_signature and secret:
         expected = hmac.new(secret.encode(), raw_body, hashlib.sha512).hexdigest()
         if hmac.compare_digest(expected, legacy_signature):

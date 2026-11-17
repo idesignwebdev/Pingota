@@ -70,20 +70,30 @@ _NO_SCHEDULER_COMMANDS = {
 def tick() -> dict:
     """Run one pass of all jobs. Also used by the ``tick`` management command."""
     from apps.network import mikrotik
-    from apps.network.provisioning import expire_due_grants, retry_pending_grants
+    from apps.network.provisioning import (
+        expire_due_grants,
+        retry_pending_grants,
+        revoke_suspended_grants,
+    )
     from apps.tenants.models import Router
 
-    result = {"expired": 0, "recovered": 0, "routers": 0}
+    result = {"expired": 0, "suspended": 0, "recovered": 0, "routers": 0}
     try:
         result["expired"] = expire_due_grants()
     except Exception:  # noqa: BLE001 - one bad row must not kill the loop
         log.exception("expiry sweep failed")
     try:
+        result["suspended"] = revoke_suspended_grants()
+    except Exception:  # noqa: BLE001
+        log.exception("suspension sweep failed")
+    try:
         result["recovered"] = retry_pending_grants()
     except Exception:  # noqa: BLE001
         log.exception("provisioning retry failed")
     try:
-        for router in Router.objects.filter(enabled=True):
+        for router in Router.objects.filter(enabled=True).select_related("isp"):
+            if router.isp.service_suspended:
+                continue
             mikrotik.record_health(router)
             result["routers"] += 1
     except Exception:  # noqa: BLE001
@@ -119,9 +129,14 @@ def start() -> None:
         while True:
             now = time.monotonic()
             try:
-                from apps.network.provisioning import expire_due_grants, retry_pending_grants
+                from apps.network.provisioning import (
+                    expire_due_grants,
+                    retry_pending_grants,
+                    revoke_suspended_grants,
+                )
 
                 expire_due_grants()
+                revoke_suspended_grants()
                 retry_pending_grants(limit=5)
                 _enforce_fup()
                 if now - last_health >= settings.SYNC_TICK_SECONDS:
@@ -144,7 +159,9 @@ def _enforce_fup() -> None:
 
     now = time.monotonic()
     pairs = []
-    for router in Router.objects.filter(enabled=True, status="connected")[:50]:
+    for router in Router.objects.filter(enabled=True, status="connected").select_related("isp")[:50]:
+        if router.isp.service_suspended:
+            continue  # paused networks get no router calls
         if not _reachable(router, now):
             continue  # still backing off after a failed dial
         grants = list(
@@ -172,7 +189,9 @@ def _sample_routers() -> None:
     from apps.tenants.models import Router
 
     now = time.monotonic()
-    for router in Router.objects.filter(enabled=True)[:50]:
+    for router in Router.objects.filter(enabled=True).select_related("isp")[:50]:
+        if router.isp.service_suspended:
+            continue
         if not _reachable(router, now):
             continue
         mikrotik.record_health(router)

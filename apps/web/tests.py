@@ -418,19 +418,36 @@ class TrialEnforcementTests(TestCase):
         self.client.force_login(self.operator)
         self.assertEqual(self.client.get("/admin/").status_code, 200)
 
-    def test_expired_trial_shows_the_trial_page_and_keeps_the_portal_open(self):
+    def test_expired_trial_stops_the_panel_and_the_portal(self):
         self.isp.plan = "trial"
         self.isp.trial_ends_at = timezone.now() - timedelta(minutes=5)
         self.isp.save(update_fields=["plan", "trial_ends_at"])
+        SubscriptionPlan.objects.create(
+            code="growth", name="Growth", monthly_price=Decimal("1000"), max_routers=3
+        )
         self.client.force_login(self.operator)
 
         response = self.client.get("/admin/")
         self.assertEqual(response.status_code, 403)
         self.assertContains(response, "The trial for Net has ended", status_code=403)
-        self.assertContains(response, "See plans", status_code=403)
+        self.assertContains(response, "/admin/plan/growth/", status_code=403)
 
         self.assertEqual(self.client.get("/admin/settings/").status_code, 403)
-        self.assertEqual(self.client.get("/portal/net/").status_code, 200)
+        portal = self.client.get("/portal/net/")
+        self.assertEqual(portal.status_code, 403)
+        self.assertContains(portal, "The Wi-Fi is paused", status_code=403)
+
+    def test_expired_paid_plan_stops_the_panel_and_the_portal(self):
+        self.isp.plan = "growth"
+        self.isp.trial_ends_at = timezone.now() - timedelta(days=3)
+        self.isp.plan_ends_at = timezone.now() - timedelta(hours=1)
+        self.isp.save(update_fields=["plan", "trial_ends_at", "plan_ends_at"])
+        self.client.force_login(self.operator)
+
+        response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "The Growth plan for Net has ended", status_code=403)
+        self.assertEqual(self.client.get("/portal/net/").status_code, 403)
 
     def test_paid_plan_ignores_an_old_trial_date(self):
         self.isp.plan = "growth"
@@ -445,6 +462,27 @@ class TrialEnforcementTests(TestCase):
         self.isp.save(update_fields=["plan", "trial_ends_at"])
         self.client.force_login(self.operator)
         self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_legacy_paid_plan_without_a_date_stays_open(self):
+        self.isp.plan = "growth"
+        self.isp.plan_ends_at = None
+        self.isp.save(update_fields=["plan", "plan_ends_at"])
+        self.client.force_login(self.operator)
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_manual_suspension_does_not_offer_a_checkout(self):
+        self.isp.status = "suspended"
+        self.isp.save(update_fields=["status"])
+        SubscriptionPlan.objects.create(
+            code="growth", name="Growth", monthly_price=Decimal("1000"), max_routers=3
+        )
+        self.client.force_login(self.operator)
+
+        response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Net is paused", status_code=403)
+        self.assertNotContains(response, "/admin/plan/growth/", status_code=403)
+        self.assertEqual(self.client.get("/portal/net/").status_code, 403)
 
 
 class PricingTests(TestCase):
@@ -461,6 +499,8 @@ class PricingTests(TestCase):
         self.assertContains(response, "Growth")
         self.assertContains(response, "1,234")
         self.assertContains(response, "Up to 3 routers")
+        self.assertContains(response, "/admin/plan/growth/")
+        self.assertContains(response, "Subscribe to Growth")
 
         plan.monthly_price = Decimal("1500.00")
         plan.save(update_fields=["monthly_price"])

@@ -1,27 +1,52 @@
 {% extends "base.html" %}
-{% block title %}Trial ended - Pingota{% endblock %}
+{% block title %}Service paused - Pingota{% endblock %}
 {% block body %}
 <main class="wrap" id="main" style="max-width:560px; padding-top:64px; padding-bottom:64px">
   <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
     {% include "partials/logo.svg" %} Pingota
   </a>
 
-  <div class="card stack-16">
+  <div class="card stack-24">
     <div>
-      <h1 style="font-size:1.5rem; margin:0 0 4px">The trial for {{ isp.name }} has ended</h1>
-      <p class="small" style="margin:0">
-        The 24-hour trial ended{% if isp.trial_ends_at %} on {{ isp.trial_ends_at|date:"d M Y, H:i" }}{% endif %}.
-        Guest passes that are already paid keep working and payments still settle to your account.
-      </p>
+      {% if isp.trial_has_ended %}
+        <h1 style="font-size:1.5rem; margin:0 0 4px">The trial for {{ isp.name }} has ended</h1>
+        <p class="small" style="margin:0">
+          The 24-hour trial ended on {{ isp.trial_ends_at|date:"d M Y, H:i" }}. The panel, guest portal and router access are paused until you pick a plan.
+        </p>
+      {% elif isp.plan_has_ended %}
+        <h1 style="font-size:1.5rem; margin:0 0 4px">The {{ isp.plan_label }} plan for {{ isp.name }} has ended</h1>
+        <p class="small" style="margin:0">
+          The plan ended on {{ isp.plan_ends_at|date:"d M Y, H:i" }}. The panel, guest portal and router access are paused until you renew.
+        </p>
+      {% else %}
+        <h1 style="font-size:1.5rem; margin:0 0 4px">{{ isp.name }} is paused</h1>
+        <p class="small" style="margin:0">Pingota has paused this network. Email support and we will restore it.</p>
+      {% endif %}
     </div>
 
-    <div>
-      <p class="small" style="margin:0 0 12px">Choose a plan to reopen the operator panel and keep adding routers and passes.</p>
-      <div class="row" style="gap:8px; flex-wrap:wrap">
-        <a class="btn btn--primary" href="/pricing/">See plans</a>
-        <a class="btn btn--secondary" href="mailto:idesignweb.co.ke@gmail.com?subject=Upgrade%20{{ isp.name|urlencode }}">Email support</a>
+    {% if isp.manually_suspended %}
+      <a class="btn btn--primary btn--block" href="mailto:idesignweb.co.ke@gmail.com?subject=Restore%20{{ isp.name|urlencode }}">Email support</a>
+    {% else %}
+      <div>
+        <h2 style="font-size:1.05rem; margin:0 0 4px">Choose a plan</h2>
+        <p class="small" style="margin:0 0 12px">Payment reopens everything as soon as it is confirmed.</p>
+        <div class="stack-8">
+          {% for plan in plans %}
+          <div class="row-between" style="gap:16px; padding:12px 0; border-top:1px solid var(--line)">
+            <div>
+              <strong>{{ plan.name }}</strong>
+              <p class="small" style="margin:0">
+                {{ currency }} {{ plan.monthly_price|floatformat:"0g" }} per {{ plan.get_interval_display|lower }} · up to {{ plan.max_routers }} router{{ plan.max_routers|pluralize }}
+              </p>
+            </div>
+            <a class="btn btn--primary btn--sm" href="{% url 'panel:plan_checkout' plan.code %}">Pay {{ currency }} {{ plan.monthly_price|floatformat:"0g" }}</a>
+          </div>
+          {% empty %}
+          <p class="small" style="margin:0">Plans are being updated. Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> to renew.</p>
+          {% endfor %}
+        </div>
       </div>
-    </div>
+    {% endif %}
 
     <form method="post" action="/admin/logout/" data-busy="Signing out">
       {% csrf_token %}

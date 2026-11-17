@@ -43,10 +43,38 @@ def access_token(cfg) -> str:
     return resp.json().get("access_token", "")
 
 
-def stk_push(payment, phone: str) -> dict:
-    cfg = getattr(payment.isp, "mpesa", None)
+class PlatformMpesaConfig:
+    """The platform till used for hosting plans, not a tenant's shortcode."""
+
+    enabled = True
+
+    def get_consumer_key(self) -> str:
+        return settings.MPESA_PLATFORM_CONSUMER_KEY
+
+    def get_secret(self) -> str:
+        return settings.MPESA_PLATFORM_CONSUMER_SECRET
+
+    def get_shortcode(self) -> str:
+        return settings.MPESA_PLATFORM_SHORTCODE
+
+    def get_passkey(self) -> str:
+        return settings.MPESA_PLATFORM_PASSKEY
+
+
+def platform_configured() -> bool:
+    return all(
+        [
+            settings.MPESA_PLATFORM_SHORTCODE,
+            settings.MPESA_PLATFORM_CONSUMER_KEY,
+            settings.MPESA_PLATFORM_CONSUMER_SECRET,
+            settings.MPESA_PLATFORM_PASSKEY,
+        ]
+    )
+
+
+def _stk_push(cfg, payment, phone: str, *, callback_url: str, description: str) -> dict:
     if not cfg or not cfg.enabled:
-        raise MpesaError("M-Pesa is not configured for this ISP")
+        raise MpesaError("M-Pesa is not configured")
 
     phone = phone.replace("+", "").replace(" ", "")
     if phone.startswith("0"):
@@ -58,6 +86,10 @@ def stk_push(payment, phone: str) -> dict:
     if not shortcode:
         raise MpesaError("M-Pesa shortcode is not configured")
 
+    amount = Decimal(payment.amount)
+    if amount != amount.to_integral_value():
+        raise MpesaError("This payment must be a whole shilling amount for M-Pesa")
+
     timestamp = datetime.now(dt_timezone.utc).strftime("%Y%m%d%H%M%S")
     password = base64.b64encode(f"{shortcode}{cfg.get_passkey()}{timestamp}".encode()).decode()
 
@@ -66,13 +98,13 @@ def stk_push(payment, phone: str) -> dict:
         "Password": password,
         "Timestamp": timestamp,
         "TransactionType": "CustomerPayBillOnline",
-        "Amount": int(Decimal(payment.amount)),
+        "Amount": int(amount),
         "PartyA": phone,
         "PartyB": shortcode,
         "PhoneNumber": phone,
-        "CallBackURL": f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{payment.isp.slug}/",
+        "CallBackURL": callback_url,
         "AccountReference": payment.reference[:12],
-        "TransactionDesc": f"{payment.isp.name} {payment.package.name}"[:60],
+        "TransactionDesc": description[:60],
     }
     resp = httpx.post(
         f"{_base_url(settings.MPESA_ENV)}/mpesa/stkpush/v1/processrequest",
@@ -84,6 +116,32 @@ def stk_push(payment, phone: str) -> dict:
     if resp.status_code >= 400 or body.get("ResponseCode") not in ("0", 0):
         raise MpesaError(body.get("errorMessage") or "STK push was rejected")
     return body
+
+
+def stk_push(payment, phone: str) -> dict:
+    """Guest pass sale, settled to the ISP's own till."""
+    return _stk_push(
+        getattr(payment.isp, "mpesa", None),
+        payment,
+        phone,
+        callback_url=f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{payment.isp.slug}/",
+        description=f"{payment.isp.name} {payment.package.name}",
+    )
+
+
+def stk_push_platform(payment, phone: str) -> dict:
+    """Hosting-plan sale, settled to the platform till."""
+    if not platform_configured():
+        raise MpesaError("M-Pesa is not configured")
+    return _stk_push(
+        PlatformMpesaConfig(),
+        payment,
+        phone,
+        callback_url=(
+            f"{settings.PUBLIC_BASE_URL}/payments/plan/mpesa/callback/{payment.reference}/"
+        ),
+        description=f"Pingota {payment.plan.name}",
+    )
 
 
 def parse_callback(payload: dict) -> dict:

@@ -9,5 +9,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         result = tick()
         self.stdout.write(
-            f"expired={result['expired']} recovered={result['recovered']} routers={result['routers']}"
+            f"expired={result['expired']} suspended={result['suspended']} "
+            f"recovered={result['recovered']} routers={result['routers']}"
         )

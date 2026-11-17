@@ -1,11 +1,19 @@
 from django.urls import path
 
-from apps.web import admin_views, onboarding_views, team_views, voucher_views
+from apps.web import admin_views, onboarding_views, plan_views, team_views, voucher_views
 
 app_name = "panel"
 
 urlpatterns = [
     path("admin/", admin_views.overview, name="overview"),
+    # Hosting-plan checkout stays reachable while the trial or plan is ended.
+    path("admin/plan/status/<str:reference>/", plan_views.status, name="plan_status"),
+    path(
+        "admin/plan/status/<str:reference>/state/",
+        plan_views.status_state,
+        name="plan_status_state",
+    ),
+    path("admin/plan/<slug:plan_code>/", plan_views.checkout, name="plan_checkout"),
     path("admin/live/", admin_views.live, name="live"),
     path("admin/network/", admin_views.network, name="network"),
     path("admin/customers/", admin_views.customers, name="customers"),

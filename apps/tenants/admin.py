@@ -22,7 +22,7 @@ MASKED = "•" * 12
 
 @admin.register(Isp)
 class IspAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "plan", "trial_ends_at", "status", "routers_count", "created_at")
+    list_display = ("name", "slug", "plan", "trial_ends_at", "plan_ends_at", "status", "routers_count", "created_at")
     list_filter = ("plan", "status")
     search_fields = ("name", "slug", "phone")
     prepopulated_fields = {"slug": ("name",)}

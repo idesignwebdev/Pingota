@@ -67,3 +67,44 @@ class WebhookEvent(UUIDModel):
 
     def __str__(self):
         return f"{self.provider}:{self.event_id}"
+
+
+class PlanPayment(UUIDModel):
+    """What an ISP pays Pingota for hosting.
+
+    Separate from ``Payment`` because a guest pass always has a package while a
+    hosting plan does not. Money here settles to the platform account, so the
+    provider calls use platform credentials only, never a tenant's key.
+    """
+
+    isp = models.ForeignKey("tenants.Isp", on_delete=models.CASCADE, related_name="plan_payments")
+    plan = models.ForeignKey(
+        "tenants.SubscriptionPlan", on_delete=models.PROTECT, related_name="plan_payments"
+    )
+
+    provider = models.CharField(max_length=12, choices=Payment.PROVIDERS, default="paystack")
+    reference = models.CharField(max_length=80, unique=True)
+    provider_reference = models.CharField(max_length=120, blank=True, db_index=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=8, default="KES")
+    status = models.CharField(max_length=10, choices=Payment.STATUS, default="pending", db_index=True)
+
+    phone = models.CharField(max_length=24, blank=True)
+    checkout_url = models.URLField(blank=True)
+    raw_response = models.JSONField(default=dict, blank=True)
+    failure_reason = models.CharField(max_length=200, blank=True)
+
+    period_start = models.DateTimeField(null=True, blank=True)
+    period_end = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference} · {self.plan.code} · {self.status}"
+
+    @property
+    def is_settled(self) -> bool:
+        return self.status == "paid"

@@ -6,7 +6,7 @@
 <section class="section">
   <div class="wrap">
     <div class="section__head">
-      <h1>Our Pricing</h1>
+      <h1>Hosting plans</h1>
     </div>
 
     {% if lead_plan %}
@@ -29,7 +29,7 @@
             <li>Capture page, operator panel and event log</li>
           {% endfor %}
         </ul>
-        <a class="btn btn--primary" href="/signup/">Start the 24-hour trial</a>
+        <a class="btn btn--primary" href="{% url 'panel:plan_checkout' lead_plan.code %}">Subscribe to {{ lead_plan.name }}</a>
       </div>
 
       <div class="stack-24">
@@ -42,13 +42,13 @@
           {% else %}
             <p>Up to {{ plan.max_routers }} routers. For a growing network with several sites to watch.</p>
           {% endif %}
-          <a class="btn btn--secondary" href="/signup/">Request a panel</a>
+          <a class="btn btn--secondary" href="{% url 'panel:plan_checkout' plan.code %}">Subscribe to {{ plan.name }}</a>
         </div>
         {% endfor %}
       </div>
     </div>
 
-    <p class="pricing-note small">More than ten routers? Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> and we will work out a plan.</p>
+    <p class="pricing-note small">New to Pingota? <a href="/signup/">Start the 24-hour trial</a>, then pick a plan when it ends. More than ten routers? Email <a href="mailto:idesignweb.co.ke@gmail.com">idesignweb.co.ke@gmail.com</a> and we will work out a plan.</p>
     {% else %}
     <div class="card">
       <h2 style="margin:0 0 8px">Plans are being updated</h2>

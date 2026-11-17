@@ -125,9 +125,11 @@ def router_report(request, token):
     router says about itself and nothing else - the panel still verifies the
     tunnel separately before trusting it.
     """
-    router = Router.objects.filter(install_token=token).first()
+    router = Router.objects.filter(install_token=token).select_related("isp").first()
     if router is None:
         return JsonResponse({"ok": False, "error": "unknown token"}, status=404)
+    if router.isp.service_suspended:
+        return JsonResponse({"ok": False, "error": "network paused"}, status=503)
     version = (request.GET.get("version") or "")[:40]
     board = (request.GET.get("board") or "")[:80]
     try:

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Payment not found - Pingota{% endblock %}
+{% block body %}
+<main class="wrap" id="main" style="max-width:460px; padding-top:64px; padding-bottom:64px">
+  <a class="logo" href="/" style="display:flex; justify-content:center; margin-bottom:24px">
+    {% include "partials/logo.svg" %} Pingota
+  </a>
+
+  <div class="card stack-16">
+    <div>
+      <h1 style="font-size:1.4rem; margin:0 0 4px">We could not find that payment</h1>
+      <p class="small" style="margin:0">No plan was changed. Start again from the plans page.</p>
+    </div>
+    <a class="btn btn--primary btn--block" href="/pricing/">Back to plans</a>
+  </div>
+</main>
+{% endblock %}

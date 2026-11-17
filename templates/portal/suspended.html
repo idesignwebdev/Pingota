@@ -1,0 +1,16 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Paused - {{ isp.name }}{% endblock %}
+
+{% block portal %}
+<div class="portal__lead">
+  <h1>The Wi-Fi is paused</h1>
+  <p class="lede">{{ isp.name }} is not taking new passes right now.</p>
+</div>
+
+<div class="alert alert--warn" style="margin:20px 0">
+  <span class="alert__label">What this means</span>
+  Buying a pass and signing in are unavailable until the network reopens. If you already paid for a pass, ask the operator at the counter.
+</div>
+
+<a class="btn btn--secondary btn--block" href="/">Back to Pingota</a>
+{% endblock %}

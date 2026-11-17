@@ -6,11 +6,12 @@ Every entry point (webhook, callback, demo checkout) funnels through
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils import timezone
 
-from apps.billing.models import Payment
+from apps.billing.models import Payment, PlanPayment
 from apps.network import mikrotik
 from apps.network.models import SessionEvent
 from apps.network.provisioning import ProvisioningDeferred, activate_grant, open_grant
@@ -53,21 +54,69 @@ def settle_payment(payment: Payment, *, provider_reference: str = "", raw: dict 
     except ProvisioningDeferred as exc:
         # Paid but not yet online: the sweeper retries every tick.
         log.warning("provisioning deferred for grant %s: %s", grant.id, exc)
+        paused = payment.isp.service_suspended
         SessionEvent.objects.create(
             isp=payment.isp,
             grant=grant,
-            event="router_error",
-            level="error",
-            detail="Payment received. The router has not confirmed the pass yet, so the panel will retry.",
+            event="payment_error" if paused else "router_error",
+            level="warn" if paused else "error",
+            detail=(
+                "Payment received while the network was paused. Access is held until the plan is restored."
+                if paused
+                else "Payment received. The router has not confirmed the pass yet, so the panel will retry."
+            ),
         )
     return payment
 
 
-def fail_payment(payment: Payment, reason: str) -> Payment:
+def fail_payment(payment, reason: str) -> Payment:
     if payment.status == "pending":
         payment.status = "failed"
         payment.failure_reason = reason[:200]
         payment.save(update_fields=["status", "failure_reason"])
+    return payment
+
+
+def settle_plan_payment(
+    payment: PlanPayment, *, provider_reference: str = "", raw: dict | None = None
+) -> PlanPayment:
+    """Idempotent hosting-plan activation.
+
+    A renewal extends from the current end date when it is still in the future;
+    an expired plan restarts from now. Manual suspension is a platform decision
+    and is deliberately not lifted here.
+    """
+    if payment.status == "paid":
+        return payment
+
+    updated = PlanPayment.objects.filter(pk=payment.pk, status="pending").update(
+        status="paid",
+        paid_at=timezone.now(),
+        provider_reference=provider_reference,
+        raw_response=raw or {},
+    )
+    payment.refresh_from_db()
+    if not updated:
+        return payment
+
+    now = timezone.now()
+    isp = payment.isp
+    start = max(now, isp.plan_ends_at) if isp.plan_ends_at else now
+    end = start + timedelta(days=payment.plan.period_days)
+    isp.plan = payment.plan.code
+    isp.plan_ends_at = end
+    isp.save(update_fields=["plan", "plan_ends_at"])
+
+    payment.period_start = start
+    payment.period_end = end
+    payment.save(update_fields=["period_start", "period_end"])
+    log.info(
+        "plan %s activated for %s until %s (payment %s)",
+        payment.plan.code,
+        isp.slug,
+        end.isoformat(),
+        payment.reference,
+    )
     return payment
 
 
