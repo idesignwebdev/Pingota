@@ -30,15 +30,35 @@ def env_list(name, default=""):
 # --- Core -------------------------------------------------------------------
 SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", False)
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+# Loopback addresses (127.0.0.1, localhost) must always be allowed so container
+# health checks (e.g. docker-compose healthcheck on http://127.0.0.1:8000/healthz/)
+# succeed even when DJANGO_ALLOWED_HOSTS only lists the public domain name.
+_configured_hosts = env_list("DJANGO_ALLOWED_HOSTS")
+_always_allowed = ["127.0.0.1", "localhost", "testserver"]
+if PUBLIC_BASE_URL:
+    try:
+        from urllib.parse import urlparse
+
+        _pub_host = urlparse(PUBLIC_BASE_URL).hostname
+        if _pub_host and _pub_host not in _always_allowed and _pub_host not in _configured_hosts:
+            _configured_hosts.append(_pub_host)
+    except Exception:
+        pass
+ALLOWED_HOSTS = list(dict.fromkeys(_always_allowed + _configured_hosts))
+
+_csrf_origins = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+if PUBLIC_BASE_URL and PUBLIC_BASE_URL.startswith(("http://", "https://")) and PUBLIC_BASE_URL not in _csrf_origins:
+    _csrf_origins.append(PUBLIC_BASE_URL)
+CSRF_TRUSTED_ORIGINS = _csrf_origins
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # Forwarded client IP headers are only read from a private/loopback proxy peer.
 # Set TRUSTED_PROXY_IPS when the reverse proxy itself has a public address.
 TRUST_PROXY_HEADERS = env_bool("TRUST_PROXY_HEADERS", True)
 TRUSTED_PROXY_IPS = env_list("TRUSTED_PROXY_IPS")
 
-PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 # The panel is multi-tenant: each ISP logs in and sees only their own data.
 # PORTAL_SLUG is used only by the first-run bootstrap and the demo seed.
 PORTAL_SLUG = env("PORTAL_SLUG", "default")
