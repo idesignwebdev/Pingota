@@ -144,11 +144,9 @@ def install_script(router) -> str:
   src-address="{server_ip}" comment="pingota api" place-before=0
 
 :delay 5
-:local pgUp [/ping {server_ip} count=3 interval=300ms]
 :local pgVersion [/system/resource/get value-name=version]
 :local pgBoard [/system/identity/get value-name=name]
-:if ($pgUp = 0) do={{ :log error "Pingota tunnel did not connect. Check the server address and UDP port." }}
-:if ($pgUp > 0) do={{ /tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no }}
+/tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no
 """
 
 

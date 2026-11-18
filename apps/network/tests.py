@@ -40,7 +40,9 @@ class TunGuardClientTests(SimpleTestCase):
         self.assertIn('public-key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="', script)
         self.assertIn('allowed-address="10.70.0.1/32"', script)
         self.assertIn("endpoint-address=vpn.pingota.example endpoint-port=13231", script)
-        self.assertIn("[/ping 10.70.0.1 count=3", script)
+        self.assertIn("/tool/fetch", script)
+        # Hosts that filter ICMP would strand onboarding; the panel probes 8728 instead.
+        self.assertNotIn("/ping ", script)
         self.assertIn("one-time-token", script)
 
     @mock.patch("apps.network.tunguard.urllib.request.urlopen")
