@@ -67,6 +67,21 @@ def _apps_for(sender):
 
 
 def connect():
+    if settings.MONGODB_URI:
+        # Django's built-in create_permissions (registered by AuthConfig.ready)
+        # fires BEFORE this module's handler because MongoAuthConfig appears
+        # earlier in INSTALLED_APPS than "core".  On MongoDB it crashes with
+        # "Model instances without primary key value are unhashable" because
+        # bulk_create in create_contenttypes produces ContentType objects
+        # whose ObjectId PK has not been set.
+        #
+        # Disconnect that handler so only the MongoDB-safe one below runs.
+        # It pre-seeds every content type with create() (which returns a saved
+        # instance with an ObjectId) and then calls create_permissions itself.
+        post_migrate.disconnect(
+            dispatch_uid="django.contrib.auth.management.create_permissions",
+        )
+
     post_migrate.connect(
         create_content_types_and_permissions,
         dispatch_uid="core.mongo_permissions.create_content_types_and_permissions",
