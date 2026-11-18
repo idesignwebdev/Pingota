@@ -39,7 +39,8 @@ class TunGuardClientTests(SimpleTestCase):
         self.assertIn('private-key="router-private-key"', script)
         self.assertIn('public-key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="', script)
         self.assertIn('allowed-address="10.70.0.1/32"', script)
-        self.assertIn("/ping address=\"10.70.0.1\"", script)
+        self.assertIn("endpoint-address=vpn.pingota.example endpoint-port=13231", script)
+        self.assertIn("[/ping 10.70.0.1 count=3", script)
         self.assertIn("one-time-token", script)
 
     @mock.patch("apps.network.tunguard.urllib.request.urlopen")
@@ -78,3 +79,14 @@ class TunGuardClientTests(SimpleTestCase):
         urlopen.return_value = response
 
         self.assertEqual(server_public_key(), base64.b64encode(bytes(range(32))).decode("ascii"))
+
+
+class TunnelEndpointHostTests(SimpleTestCase):
+    def test_strips_the_parts_routeros_rejects(self):
+        from config.settings import _tunnel_endpoint_host
+
+        self.assertEqual(_tunnel_endpoint_host("193.181.215.176"), "193.181.215.176")
+        self.assertEqual(_tunnel_endpoint_host("http://193.181.215.176:9000"), "193.181.215.176")
+        self.assertEqual(_tunnel_endpoint_host("vpn.pingota.example:13231/"), "vpn.pingota.example")
+        self.assertEqual(_tunnel_endpoint_host("  vpn.pingota.example  "), "vpn.pingota.example")
+        self.assertEqual(_tunnel_endpoint_host("fd00::1"), "fd00::1")

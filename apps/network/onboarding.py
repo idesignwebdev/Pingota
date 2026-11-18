@@ -120,9 +120,6 @@ def install_script(router) -> str:
     tunnel = ipaddress.ip_network(TUNNEL_SUBNET)
     server_ip = str(tunnel.network_address + 1)
     report = f"{settings.PUBLIC_BASE_URL}/routers/{router.install_token}/report/"
-    # RouterOS evaluates $[] expressions inside tool/fetch URLs before sending.
-    version = "$[/system/resource/get value-name=version]"
-    board = "$[/system/identity/get value-name=name]"
 
     return f"""# Pingota install — {router.isp.name} / {router.name}
 # RouterOS 7. Paste this whole block, then wait about ten seconds.
@@ -137,7 +134,7 @@ def install_script(router) -> str:
 
 /interface/wireguard/peers/add interface="pingota-wg" \\
   public-key="{server_public_key()}" \\
-  endpoint-address="{settings.ROUTER_TUNNEL_HOST}" endpoint-port="{settings.ROUTER_TUNNEL_PORT}" \\
+  endpoint-address={settings.ROUTER_TUNNEL_HOST} endpoint-port={settings.ROUTER_TUNNEL_PORT} \\
   allowed-address="{server_ip}/32" persistent-keepalive=25s comment="pingota"
 
 /user/group/add name="pingota" policy="{API_POLICY}"
@@ -146,16 +143,12 @@ def install_script(router) -> str:
 /ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 \\
   src-address="{server_ip}" comment="pingota api" place-before=0
 
-:local tunnelReady false
-:for attempt from=1 to=10 do={{
-  :if ([/ping address="{server_ip}" count=1] > 0) do={{ :set tunnelReady true; :break }}
-  :delay 1s
-}}
-:if ($tunnelReady) do={{
-  /tool/fetch url="{report}?version={version}&board={board}" keep-result=no
-}} else={{
-  :log error "Pingota tunnel did not connect. Check the server address and UDP port."
-}}
+:delay 5
+:local pgUp [/ping {server_ip} count=3 interval=300ms]
+:local pgVersion [/system/resource/get value-name=version]
+:local pgBoard [/system/identity/get value-name=name]
+:if ($pgUp = 0) do={{ :log error "Pingota tunnel did not connect. Check the server address and UDP port." }}
+:if ($pgUp > 0) do={{ /tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no }}
 """
 
 

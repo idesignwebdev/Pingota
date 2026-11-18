@@ -63,8 +63,26 @@ TRUSTED_PROXY_IPS = env_list("TRUSTED_PROXY_IPS")
 # PORTAL_SLUG is used only by the first-run bootstrap and the demo seed.
 PORTAL_SLUG = env("PORTAL_SLUG", "default")
 
+def _tunnel_endpoint_host(value):
+    """Bare host for the WireGuard endpoint RouterOS dials.
+
+    ROUTER_TUNNEL_HOST is easy to fill with a URL or "host:port" copied from
+    elsewhere; RouterOS rejects both in endpoint-address. Keep the address and
+    drop the scheme, path and port, which comes from ROUTER_TUNNEL_PORT.
+    """
+    host = (value or "").strip()
+    if "://" in host:
+        host = host.split("://", 1)[1]
+    host = host.split("/", 1)[0]
+    if host.count(":") == 1:  # IPv4 name plus port; a bare IPv6 keeps its colons
+        address, _, port = host.partition(":")
+        if port.isdigit():
+            host = address
+    return host
+
+
 # Router onboarding uses TunGuard's peer API and WireGuard-compatible tunnel.
-ROUTER_TUNNEL_HOST = env("ROUTER_TUNNEL_HOST", "vpn.pingota.example")
+ROUTER_TUNNEL_HOST = _tunnel_endpoint_host(env("ROUTER_TUNNEL_HOST", "vpn.pingota.example"))
 ROUTER_TUNNEL_PORT = int(env("ROUTER_TUNNEL_PORT", "13231"))
 ROUTER_TUNNEL_SUBNET = env("ROUTER_TUNNEL_SUBNET", "10.70.0.0/16")
 TUNGARD_API_URL = env("TUNGARD_API_URL", "")
