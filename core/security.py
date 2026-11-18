@@ -444,6 +444,14 @@ def brute_force_record_failure(kind: str, account: str, ip: str) -> tuple[str, i
             count,
             ttl,
         )
+        cfg = _BF_CONFIG.get(kind, _BF_CONFIG["login"])
+        if count == cfg.get("lockout_at", 6):
+            try:
+                from core import alerts
+
+                alerts.notify_security_lockout(kind, _safe_ip(ip), count)
+            except Exception:
+                pass
     return tier, count, retry, ttl
 
 

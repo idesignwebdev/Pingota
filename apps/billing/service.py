@@ -117,6 +117,12 @@ def settle_plan_payment(
         end.isoformat(),
         payment.reference,
     )
+    try:
+        from core import alerts
+
+        alerts.notify_plan_payment(payment)
+    except Exception:
+        pass
     return payment
 
 

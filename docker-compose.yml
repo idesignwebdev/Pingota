@@ -46,6 +46,10 @@ services:
       TIME_ZONE: ${TIME_ZONE:-Africa/Nairobi}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       WEB_THREADS: ${WEB_THREADS:-4}
+      # Push alerts via ntfy (https://ntfy.sh or self-hosted)
+      NTFY_SERVER: ${NTFY_SERVER:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
     volumes:
       - pingota_data:/app/data
     extra_hosts:

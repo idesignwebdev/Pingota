@@ -285,6 +285,13 @@ MPESA_PLATFORM_CONSUMER_KEY = env("MPESA_PLATFORM_CONSUMER_KEY", "")
 MPESA_PLATFORM_CONSUMER_SECRET = env("MPESA_PLATFORM_CONSUMER_SECRET", "")
 MPESA_PLATFORM_PASSKEY = env("MPESA_PLATFORM_PASSKEY", "")
 
+# --- Alerts (ntfy) ----------------------------------------------------------
+# Push notifications for operator signups, router outages, plan renewals, and security events.
+# Set NTFY_TOPIC (and optionally NTFY_SERVER / NTFY_TOKEN) in production.
+NTFY_SERVER = env("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
+NTFY_TOPIC = env("NTFY_TOPIC", "")
+NTFY_TOKEN = env("NTFY_TOKEN", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

@@ -119,14 +119,25 @@ def _stk_push(cfg, payment, phone: str, *, callback_url: str, description: str) 
 
 
 def stk_push(payment, phone: str) -> dict:
-    """Guest pass sale, settled to the ISP's own till."""
-    return _stk_push(
-        getattr(payment.isp, "mpesa", None),
-        payment,
-        phone,
-        callback_url=f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{payment.isp.slug}/",
-        description=f"{payment.isp.name} {payment.package.name}",
-    )
+    """Guest pass sale: settled to the ISP's own till first, then platform till fallback."""
+    cfg = getattr(payment.isp, "mpesa", None)
+    if cfg and cfg.enabled and cfg.get_shortcode():
+        return _stk_push(
+            cfg,
+            payment,
+            phone,
+            callback_url=f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{payment.isp.slug}/",
+            description=f"{payment.isp.name} {payment.package.name}",
+        )
+    if platform_configured():
+        return _stk_push(
+            PlatformMpesaConfig(),
+            payment,
+            phone,
+            callback_url=f"{settings.PUBLIC_BASE_URL}/payments/mpesa/callback/{payment.isp.slug}/",
+            description=f"{payment.isp.name} {payment.package.name}",
+        )
+    raise MpesaError("M-Pesa is not configured")
 
 
 def stk_push_platform(payment, phone: str) -> dict:

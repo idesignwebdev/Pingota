@@ -406,7 +406,15 @@ def record_health(router) -> None:
             latency_ms=latency,
         )
     except (RouterError, ValueError, OSError) as exc:
+        was_online = router.last_status == "online"
         router.last_status = str(exc)[:120]
         router.save(update_fields=["last_status"])
         RouterMetric.objects.create(router=router, reachable=False, latency_ms=0)
         log.warning("router health failed: %s -> %s", router, exc)
+        if was_online:
+            try:
+                from core import alerts
+
+                alerts.notify_router_down(router, str(exc)[:120])
+            except Exception:
+                pass

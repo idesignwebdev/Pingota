@@ -38,7 +38,7 @@ def signup(request):
                 status=400,
             )
 
-        SignupRequest.objects.create(
+        signup_req = SignupRequest.objects.create(
             business_name=data["business_name"].strip()[:120],
             contact_name=(data.get("contact_name") or "").strip()[:120],
             email=data["email"].strip()[:254],
@@ -47,6 +47,12 @@ def signup(request):
             routers=max(1, min(int(data.get("routers") or 1), 500)),
             note=(data.get("note") or "").strip()[:400],
         )
+        try:
+            from core import alerts
+
+            alerts.notify_signup(signup_req)
+        except Exception:
+            pass
         return redirect("signup_done")
 
     return render(request, "marketing/signup.html", {})
