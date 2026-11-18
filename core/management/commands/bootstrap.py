@@ -39,8 +39,13 @@ class Command(BaseCommand):
             return
 
         User = get_user_model()
-        if User.objects.filter(username=username).exists():
-            self.stdout.write(f"Operator {username} already exists")
+        user = User.objects.filter(username__iexact=username).first()
+        if user:
+            user.set_password(password)
+            user.is_staff = True
+            user.is_superuser = True
+            user.save(update_fields=["password", "is_staff", "is_superuser"])
+            self.stdout.write(self.style.SUCCESS(f"Updated password for platform operator {user.username}"))
         else:
             User.objects.create_superuser(username=username, email=username, password=password)
             self.stdout.write(self.style.SUCCESS(f"Created platform operator {username}"))
