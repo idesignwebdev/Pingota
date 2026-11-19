@@ -49,7 +49,9 @@ class TunGuardClientTests(SimpleTestCase):
         self.assertIn('interface="bridge" profile="pingota"', script)
         self.assertIn('dst-host="pingota.example"', script)
         self.assertIn("/portal/north/hotspot/login.html", script)
-        self.assertIn('dst-path="hotspot/login.html"', script)
+        # keep-result=yes: with no, RouterOS deletes the download and the old
+        # login page stays in place.
+        self.assertIn('dst-path="hotspot/login.html" keep-result=yes', script)
         # Both fetches share one line: RouterOS drops queued input while a
         # fetch is still connecting, which split the report URL last time.
         self.assertIn("keep-result=no; /tool/fetch", script)

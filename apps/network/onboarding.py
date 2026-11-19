@@ -162,7 +162,7 @@ def install_script(router) -> str:
 :delay 5
 :local pgVersion [/system/resource/get value-name=version]
 :local pgBoard [/system/identity/get value-name=name]
-/tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no; /tool/fetch url="{login_page}" dst-path="hotspot/login.html" keep-result=no
+/tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no; /tool/fetch url="{login_page}" dst-path="hotspot/login.html" keep-result=yes
 """
 
 
