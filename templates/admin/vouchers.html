@@ -14,11 +14,21 @@
   </div>
 </div>
 
-<div class="tabs" role="navigation" aria-label="Voucher state">
-  <a href="{% url 'panel:vouchers' %}?state=unused{% if batch %}&batch={{ batch|urlencode }}{% endif %}" {% if state == "unused" %}aria-current="page"{% endif %}>Unused ({{ counts.unused|default:0 }})</a>
-  <a href="{% url 'panel:vouchers' %}?state=redeemed{% if batch %}&batch={{ batch|urlencode }}{% endif %}" {% if state == "redeemed" %}aria-current="page"{% endif %}>Redeemed ({{ counts.redeemed|default:0 }})</a>
-  <a href="{% url 'panel:vouchers' %}?state=void{% if batch %}&batch={{ batch|urlencode }}{% endif %}" {% if state == "void" %}aria-current="page"{% endif %}>Void ({{ counts.void|default:0 }})</a>
-  <a href="{% url 'panel:vouchers' %}?state=all{% if batch %}&batch={{ batch|urlencode }}{% endif %}" {% if state == "all" %}aria-current="page"{% endif %}>All</a>
+<div class="row-between" style="margin-bottom:16px; gap:12px; flex-wrap:wrap">
+  <div class="tabs" role="navigation" aria-label="Voucher state" style="margin:0">
+    <a href="{% url 'panel:vouchers' %}?state=unused{% if batch %}&batch={{ batch|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if state == "unused" %}aria-current="page"{% endif %}>Unused ({{ counts.unused|default:0 }})</a>
+    <a href="{% url 'panel:vouchers' %}?state=redeemed{% if batch %}&batch={{ batch|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if state == "redeemed" %}aria-current="page"{% endif %}>Redeemed ({{ counts.redeemed|default:0 }})</a>
+    <a href="{% url 'panel:vouchers' %}?state=void{% if batch %}&batch={{ batch|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if state == "void" %}aria-current="page"{% endif %}>Void ({{ counts.void|default:0 }})</a>
+    <a href="{% url 'panel:vouchers' %}?state=all{% if batch %}&batch={{ batch|urlencode }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if state == "all" %}aria-current="page"{% endif %}>All</a>
+  </div>
+  <form class="filters" method="get" action="{% url 'panel:vouchers' %}" style="margin:0">
+    <input type="hidden" name="state" value="{{ state }}">
+    {% if batch %}<input type="hidden" name="batch" value="{{ batch }}">{% endif %}
+    <label class="sr-only" for="q">Search vouchers</label>
+    <input id="q" name="q" type="text" value="{{ q }}" placeholder="Voucher code, phone, or MAC">
+    <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+    {% if q %}<a class="btn btn--ghost btn--sm" href="{% url 'panel:vouchers' %}?state={{ state }}{% if batch %}&batch={{ batch|urlencode }}{% endif %}">Clear</a>{% endif %}
+  </form>
 </div>
 
 {% if batch %}

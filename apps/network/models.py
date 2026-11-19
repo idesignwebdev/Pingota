@@ -92,6 +92,7 @@ class AccessGrant(UUIDModel):
     package = models.ForeignKey(Package, on_delete=models.PROTECT, related_name="grants")
     router = models.ForeignKey("tenants.Router", on_delete=models.SET_NULL, null=True, blank=True)
     hotspot_username = models.CharField(max_length=60, blank=True)
+    support_code = models.CharField(max_length=24, blank=True, db_index=True)
     state = models.CharField(max_length=10, choices=STATE, default="active")
     started_at = models.DateTimeField()
     expires_at = models.DateTimeField(db_index=True)
@@ -110,6 +111,20 @@ class AccessGrant(UUIDModel):
 
     def __str__(self):
         return f"{self.customer.mac_address} · {self.package.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.support_code:
+            import secrets
+            num = secrets.randbelow(900000) + 100000
+            self.support_code = f"PG-{num}"
+        super().save(*args, **kwargs)
+
+    @property
+    def display_support_code(self) -> str:
+        if self.support_code:
+            return self.support_code
+        h = str(self.id).replace("-", "").upper()
+        return f"PG-{h[:6]}"
 
     @property
     def seconds_left(self) -> int:

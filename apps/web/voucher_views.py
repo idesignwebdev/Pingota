@@ -19,11 +19,21 @@ def list_vouchers(request):
     isp = current_isp(request)
     state = request.GET.get("state") or "unused"
     batch = request.GET.get("batch") or ""
+    q = (request.GET.get("q") or "").strip()
     qs = isp.vouchers.select_related("package", "redeemed_by")
     if state != "all":
         qs = qs.filter(state=state)
     if batch:
         qs = qs.filter(batch=batch)
+    if q:
+        from django.db.models import Q
+
+        qs = qs.filter(
+            Q(code__icontains=q)
+            | Q(redeemed_by__mac_address__icontains=q)
+            | Q(redeemed_by__phone__icontains=q)
+            | Q(batch__icontains=q)
+        )
     return render(
         request,
         "admin/vouchers.html",
@@ -33,6 +43,7 @@ def list_vouchers(request):
             "vouchers": qs[:200],
             "state": state,
             "batch": batch,
+            "q": q,
             "counts": {
                 row["state"]: row["n"] for row in isp.vouchers.values("state").annotate(n=Count("id"))
             },

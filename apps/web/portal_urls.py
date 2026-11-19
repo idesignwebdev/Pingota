@@ -15,4 +15,5 @@ urlpatterns = [
     path("<slug:isp_slug>/pass/", portal_views.my_pass, name="my_pass"),
     path("<slug:isp_slug>/hotspot/login.html", portal_views.hotspot_login, name="hotspot_login"),
     path("<slug:isp_slug>/voucher/", portal_views.redeem_voucher, name="redeem_voucher"),
+    path("<slug:isp_slug>/reconcile/", portal_views.reconcile, name="reconcile"),
 ]

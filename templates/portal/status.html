@@ -13,6 +13,7 @@
     <div class="pass__row"><span>Pass</span><span>{{ grant.package.name }}</span></div>
     <div class="pass__row"><span>Time left</span><span>{{ grant.time_left_label }}</span></div>
     <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
+    <div class="pass__row"><span>Support code</span><span class="mono" style="font-weight:600">{{ grant.display_support_code }}</span></div>
   </div>
 
   {% if connect_url %}
@@ -53,9 +54,10 @@
       If the status does not change after a minute,
       {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the reference code/support code{% endif %}
     </p>
-    <details class="event-detail">
+    <details class="event-detail" open>
       <summary>Support code</summary>
-      <p class="mono">{{ payment.reference }}</p>
+      <p class="mono" style="font-weight:600; font-size:1.1rem; letter-spacing:.05em">{% if grant and grant.display_support_code %}{{ grant.display_support_code }}{% else %}{{ payment.reference }}{% endif %}</p>
+      {% if payment.provider_reference %}<p class="small muted mono" style="margin:4px 0 0">Receipt: {{ payment.provider_reference }}</p>{% endif %}
     </details>
   </div>
 
@@ -100,9 +102,10 @@
       If the payment does not confirm,
       {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.{% endif %}
     </p>
-    <details class="event-detail">
+    <details class="event-detail" open>
       <summary>Support code</summary>
-      <p class="mono">{{ payment.reference }}</p>
+      <p class="mono" style="font-weight:600; font-size:1.1rem; letter-spacing:.05em">{% if grant and grant.display_support_code %}{{ grant.display_support_code }}{% else %}{{ payment.reference }}{% endif %}</p>
+      {% if payment.provider_reference %}<p class="small muted mono" style="margin:4px 0 0">Receipt: {{ payment.provider_reference }}</p>{% endif %}
     </details>
   </div>
 {% endif %}

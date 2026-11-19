@@ -17,6 +17,7 @@
       <div class="pass__row"><span>Current pass</span><span>{{ grant.package.name }}</span></div>
       <div class="pass__row"><span>Time left</span><span>{{ grant.time_left_label }}</span></div>
       <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
+      <div class="pass__row"><span>Support code</span><span class="mono" style="font-weight:600">{{ grant.display_support_code }}</span></div>
       <div class="pass__row"><span>Status</span><span class="badge badge--ok">Active</span></div>
     </div>
     <a class="btn btn--primary btn--block" href="/portal/{{ isp.slug }}/packages/">Add more time</a>

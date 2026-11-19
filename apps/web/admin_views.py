@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 from functools import wraps
@@ -16,7 +17,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -193,11 +194,20 @@ def overview(request):
 def live(request):
     isp = current_isp(request)
     now = timezone.now()
+    q = (request.GET.get("q") or "").strip()
     grants = (
         AccessGrant.objects.filter(isp=isp, state="active", expires_at__gt=now)
         .select_related("customer", "package", "router")
         .order_by("expires_at")
     )
+    if q:
+        clean_q = re.sub(r"[^A-Za-z0-9_-]", "", q)
+        grants = grants.filter(
+            Q(customer__mac_address__icontains=q)
+            | Q(customer__phone__icontains=q)
+            | Q(support_code__icontains=clean_q)
+            | Q(hotspot_username__icontains=clean_q.lower())
+        )
     devices = []
     router = isp.routers.filter(enabled=True).first()
     if router:
@@ -209,7 +219,14 @@ def live(request):
     return render(
         request,
         "admin/live.html",
-        {"active_nav": "live", "isp": isp, "grants": grants, "devices": devices, "router": router},
+        {
+            "active_nav": "live",
+            "isp": isp,
+            "grants": grants,
+            "devices": devices,
+            "router": router,
+            "q": q,
+        },
     )
 
 
@@ -229,25 +246,93 @@ def customers(request):
     isp = current_isp(request)
     query = (request.GET.get("q") or "").strip()
     qs = Customer.objects.filter(isp=isp)
+    matching_payments = []
+
     if query:
-        qs = qs.filter(mac_address__icontains=query) | qs.filter(phone__icontains=query)
+        clean_q = re.sub(r"[^A-Za-z0-9_-]", "", query)
+        payment_cust_ids = set(
+            isp.payments.filter(
+                Q(reference__icontains=query)
+                | Q(provider_reference__icontains=query)
+                | Q(raw_response__icontains=query)
+            )
+            .exclude(customer=None)
+            .values_list("customer_id", flat=True)
+        )
+        voucher_cust_ids = set(
+            isp.vouchers.filter(code__icontains=clean_q)
+            .exclude(redeemed_by=None)
+            .values_list("redeemed_by_id", flat=True)
+        )
+        grant_cust_ids = set(
+            AccessGrant.objects.filter(isp=isp)
+            .filter(
+                Q(support_code__icontains=clean_q)
+                | Q(id__icontains=clean_q.lower())
+                | Q(hotspot_username__icontains=clean_q.lower())
+            )
+            .values_list("customer_id", flat=True)
+        )
+        all_matched_ids = payment_cust_ids | voucher_cust_ids | grant_cust_ids
+
+        qs = qs.filter(
+            Q(mac_address__icontains=query)
+            | Q(phone__icontains=query)
+            | Q(pk__in=all_matched_ids)
+        )
+
+        matching_payments = list(
+            isp.payments.filter(
+                Q(reference__icontains=query) | Q(provider_reference__icontains=query)
+            )
+            .select_related("package", "customer")
+            .order_by("-created_at")[:10]
+        )
+
     now = timezone.now()
     rows = []
     for customer in qs.order_by("-last_seen")[:100]:
         grant = (
             AccessGrant.objects.filter(customer=customer, state="active", expires_at__gt=now)
-            .select_related("package")
+            .select_related("package", "router")
             .first()
+        )
+        latest_grant = grant or (
+            AccessGrant.objects.filter(customer=customer)
+            .select_related("package", "router")
+            .order_by("-started_at")
+            .first()
+        )
+        latest_payment = (
+            isp.payments.filter(customer=customer).order_by("-created_at").first()
+        )
+        latest_voucher = (
+            isp.vouchers.filter(redeemed_by=customer).order_by("-redeemed_at").first()
         )
         spent = (
             isp.payments.filter(customer=customer, status="paid").aggregate(total=Sum("amount"))["total"]
             or 0
         )
-        rows.append({"customer": customer, "grant": grant, "spent": spent})
+        rows.append(
+            {
+                "customer": customer,
+                "grant": grant,
+                "latest_grant": latest_grant,
+                "latest_payment": latest_payment,
+                "latest_voucher": latest_voucher,
+                "spent": spent,
+            }
+        )
     return render(
         request,
         "admin/customers.html",
-        {"active_nav": "customers", "isp": isp, "rows": rows, "q": query},
+        {
+            "active_nav": "customers",
+            "isp": isp,
+            "rows": rows,
+            "q": query,
+            "matching_payments": matching_payments,
+        },
     )
 
 
@@ -316,8 +401,17 @@ def package_form(request, package_id=None):
 @panel_required
 def revenue(request):
     isp = current_isp(request)
+    q = (request.GET.get("q") or "").strip()
     rows = _daily_totals(isp, days=30, fmt="%d %b")
-    payments = isp.payments.select_related("package", "customer").order_by("-created_at")[:50]
+    payments_qs = isp.payments.select_related("package", "customer").order_by("-created_at")
+    if q:
+        payments_qs = payments_qs.filter(
+            Q(reference__icontains=q)
+            | Q(provider_reference__icontains=q)
+            | Q(customer__mac_address__icontains=q)
+            | Q(customer__phone__icontains=q)
+        )
+    payments = payments_qs[:50]
     return render(
         request,
         "admin/revenue.html",
@@ -326,12 +420,12 @@ def revenue(request):
             "isp": isp,
             "paystack": getattr(isp, "paystack", None),
             "mpesa": getattr(isp, "mpesa", None),
-            # Shortcode is encrypted at rest, so decode it for display only.
             "mpesa_till": (getattr(isp, "mpesa", None) and isp.mpesa.get_shortcode()) or "not set",
             "chart": json.dumps(rows),
             "chart_max": max([float(r["total"]) for r in rows], default=0) or 1,
             "total": sum(float(r["total"]) for r in rows),
             "payments": payments,
+            "q": q,
         },
     )
 

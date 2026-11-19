@@ -370,6 +370,7 @@ textarea {
 input::placeholder,
 textarea::placeholder {
   color: var(--ink-faint);
+  font-size: 0.8125rem;
 }
 
 input:focus-visible,
@@ -1472,6 +1473,15 @@ textarea[aria-invalid="true"] {
 
 .filters input {
   min-width: 240px;
+  font-size: 0.875rem;
+}
+
+.filters input::placeholder {
+  font-size: 0.775rem;
+}
+
+.filters input#router-interface {
+  min-width: 290px;
 }
 
 .stat-lead {
@@ -1849,7 +1859,8 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
-  .filters input {
+  .filters input,
+  .filters input#router-interface {
     min-width: 0;
   }
 

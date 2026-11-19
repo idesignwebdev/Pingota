@@ -6,6 +6,12 @@
     <h1>Revenue</h1>
     <p class="muted">Settled payments over the last 30 days. The table shows the 50 most recent attempts, including unpaid ones.</p>
   </div>
+  <form class="filters" method="get" action="{% url 'panel:revenue' %}">
+    <label class="sr-only" for="q">Search payments</label>
+    <input id="q" name="q" type="text" value="{{ q }}" placeholder="Reference, receipt, phone, or MAC">
+    <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+    {% if q %}<a class="btn btn--ghost btn--sm" href="{% url 'panel:revenue' %}">Clear</a>{% endif %}
+  </form>
 </div>
 
 <div class="grid-lead">
@@ -43,7 +49,10 @@
     <tbody>
       {% for p in payments %}
       <tr>
-        <td class="mono">{{ p.reference }}</td>
+        <td class="mono">
+          {{ p.reference }}
+          {% if p.provider_reference %}<div class="small muted">{{ p.provider_reference }}</div>{% endif %}
+        </td>
         <td class="mono">{% if p.customer %}{{ p.customer.mac_address }}{% else %}<span class="muted">Unknown</span>{% endif %}</td>
         <td>{{ p.package.name }}</td>
         <td class="small">{{ p.get_provider_display }}</td>

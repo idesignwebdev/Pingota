@@ -6,7 +6,15 @@
     <h1>Live access</h1>
     <p class="small muted">Real-time view of active passes and connected devices.</p>
   </div>
-  <a class="btn btn--secondary btn--sm" href="{% url 'panel:live' %}">Refresh</a>
+  <div class="row" style="gap:8px">
+    <form class="filters" method="get" action="{% url 'panel:live' %}">
+      <label class="sr-only" for="q">Search active passes</label>
+      <input id="q" name="q" type="text" value="{{ q }}" placeholder="Support code, phone, or MAC">
+      <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+      {% if q %}<a class="btn btn--ghost btn--sm" href="{% url 'panel:live' %}">Clear</a>{% endif %}
+    </form>
+    <a class="btn btn--secondary btn--sm" href="{% url 'panel:live' %}">Refresh</a>
+  </div>
 </div>
 
 <div class="card data-card">
@@ -21,6 +29,7 @@
         <td>
           <div class="mono">{{ grant.customer.mac_address }}</div>
           <div class="small muted">{{ grant.customer.phone|default:"phone not captured" }}</div>
+          <div class="mono small" style="font-weight:600; color:#14213d; margin-top:2px">{{ grant.display_support_code }}</div>
         </td>
         <td>
           {{ grant.package.name }}

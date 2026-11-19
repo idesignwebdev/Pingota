@@ -225,6 +225,181 @@ class HotspotHandoffTests(TestCase):
         self.assertEqual(state["connect_url"], "")
 
 
+@override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY)
+class AutoReconciliationAndSupportTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Test Net", slug="demo-hotspot")
+        self.router = Router.objects.create(isp=self.isp, name="AP1", host="127.0.0.1")
+        self.router.set_password("secret")
+        self.router.save()
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.customer = Customer.objects.create(
+            isp=self.isp, mac_address="A4:5E:60:1C:92:0B", phone="0712345678"
+        )
+        User = get_user_model()
+        self.operator = User.objects.create_user(username="op", password="password123")
+        Membership.objects.create(user=self.operator, isp=self.isp, role="staff")
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_reconcile_with_mpesa_receipt(self, _add_user):
+        payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            reference="pg-mpesa-rec",
+            provider="mpesa",
+            provider_reference="SH12ABC345",
+            amount=Decimal("10"),
+            status="paid",
+        )
+        grant = AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(minutes=60),
+        )
+        payment.grant = grant
+        payment.save(update_fields=["grant"])
+
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+        resp = self.client.post(
+            "/portal/demo-hotspot/reconcile/",
+            {"code": "SH12ABC345", "mac": "A4:5E:60:1C:92:0B"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith("http://192.168.88.1/login?"))
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_reconcile_with_paystack_reference(self, _add_user):
+        payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            reference="pg-paystack-test",
+            provider="paystack",
+            amount=Decimal("10"),
+            status="paid",
+        )
+        grant = AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(minutes=60),
+        )
+        payment.grant = grant
+        payment.save(update_fields=["grant"])
+
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+        resp = self.client.post(
+            "/portal/demo-hotspot/reconcile/",
+            {"code": "pg-paystack-test", "mac": "A4:5E:60:1C:92:0B"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith("http://192.168.88.1/login?"))
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_reconcile_with_support_code(self, _add_user):
+        grant = AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            support_code="PG-778899",
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(minutes=60),
+        )
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+        resp = self.client.post(
+            "/portal/demo-hotspot/reconcile/",
+            {"code": "PG-778899", "mac": "A4:5E:60:1C:92:0B"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp["Location"].startswith("http://192.168.88.1/login?"))
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_reconcile_with_voucher_code(self, _add_user):
+        from apps.network.models import Voucher
+
+        voucher = Voucher.objects.create(
+            isp=self.isp,
+            package=self.package,
+            code="RCVO-UCH1",
+        )
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+        resp = self.client.post(
+            "/portal/demo-hotspot/reconcile/",
+            {"code": "rcvo-uch1", "mac": "A4:5E:60:1C:92:0B"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        voucher.refresh_from_db()
+        self.assertEqual(voucher.state, "redeemed")
+        self.assertTrue(resp["Location"].startswith("http://192.168.88.1/login?"))
+
+    def test_reconcile_unknown_code_gives_404(self):
+        self.client.get("/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B")
+        resp = self.client.post(
+            "/portal/demo-hotspot/reconcile/",
+            {"code": "TOTALLY-UNKNOWN", "mac": "A4:5E:60:1C:92:0B"},
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertContains(resp, "could not find", status_code=404)
+
+    def test_isp_can_search_by_receipt_reference_and_support_code(self):
+        self.client.login(username="op", password="password123")
+        payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            reference="pg-search-ref",
+            provider="mpesa",
+            provider_reference="SH99SEARCH",
+            amount=Decimal("10"),
+            status="paid",
+        )
+        grant = AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            support_code="PG-556677",
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(minutes=60),
+        )
+        payment.grant = grant
+        payment.save(update_fields=["grant"])
+
+        # 1. Search by M-Pesa receipt
+        resp = self.client.get("/admin/customers/?q=SH99SEARCH")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "A4:5E:60:1C:92:0B")
+        self.assertContains(resp, "SH99SEARCH")
+
+        # 2. Search by Support code
+        resp = self.client.get("/admin/customers/?q=PG-556677")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "A4:5E:60:1C:92:0B")
+        self.assertContains(resp, "PG-556677")
+
+        # 3. Search by Payment reference
+        resp = self.client.get("/admin/customers/?q=pg-search-ref")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "A4:5E:60:1C:92:0B")
+
+
 @override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY, PAYSTACK_SECRET_KEY="")
 class CheckoutRailTests(TestCase):
     """Only offer payment methods the ISP can actually complete."""

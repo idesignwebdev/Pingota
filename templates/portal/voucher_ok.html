@@ -8,7 +8,8 @@
 </div>
 
 <div class="pass" style="margin:20px 0">
-  <div class="pass__row"><span>Code</span><span class="mono">{{ voucher.code }}</span></div>
+  <div class="pass__row"><span>Voucher code</span><span class="mono">{{ voucher.code }}</span></div>
+  <div class="pass__row"><span>Support code</span><span class="mono" style="font-weight:600">{{ grant.display_support_code }}</span></div>
   <div class="pass__row"><span>Pass</span><span>{{ voucher.package.name }}</span></div>
   <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
 </div>

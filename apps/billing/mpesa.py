@@ -174,6 +174,36 @@ def stk_push_platform(payment, phone: str) -> dict:
     )
 
 
+def query_stk_status(payment) -> dict:
+    """Query Safaricom Daraja for the status of a pending STK push."""
+    cfg = getattr(payment.isp, "mpesa", None)
+    if not (cfg and cfg.enabled and cfg.get_shortcode()) and platform_configured():
+        cfg = PlatformMpesaConfig()
+    if not cfg:
+        raise MpesaError("M-Pesa is not configured")
+    checkout_id = payment.provider_reference
+    if not checkout_id:
+        raise MpesaError("No checkout request ID recorded")
+
+    shortcode = cfg.get_shortcode()
+    timestamp = datetime.now(dt_timezone.utc).strftime("%Y%m%d%H%M%S")
+    password = base64.b64encode(f"{shortcode}{cfg.get_passkey()}{timestamp}".encode()).decode()
+
+    payload = {
+        "BusinessShortCode": shortcode,
+        "Password": password,
+        "Timestamp": timestamp,
+        "CheckoutRequestID": checkout_id,
+    }
+    resp = httpx.post(
+        f"{_base_url(settings.MPESA_ENV)}/mpesa/stkpushquery/v1/query",
+        json=payload,
+        headers={"Authorization": f"Bearer {access_token(cfg)}"},
+        timeout=TIMEOUT,
+    )
+    return resp.json() if resp.content else {}
+
+
 def parse_callback(payload: dict) -> dict:
     """Flatten Safaricom's callback into the fields we store."""
     stk = (payload or {}).get("Body", {}).get("stkCallback", {})

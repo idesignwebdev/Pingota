@@ -4,35 +4,120 @@
 <div class="page-head">
   <div>
     <h1>Customers</h1>
-    <p class="muted">Devices that have started a checkout on the capture page.</p>
+    <p class="muted">Search customer passes by support code, transaction reference, M-Pesa receipt, phone, or MAC.</p>
   </div>
-  <form class="filters" method="get" action="{% url 'panel:customers' %}">
-    <label class="sr-only" for="q">Search by device address or phone</label>
-    <input id="q" name="q" type="text" value="{{ q }}" placeholder="Device address or phone">
+  <form class="filters" method="get" action="{% url 'panel:customers' %}" style="max-width:440px">
+    <label class="sr-only" for="q">Search by reference, receipt, support code, phone, or MAC</label>
+    <input id="q" name="q" type="text" value="{{ q }}" placeholder="Reference, receipt, support code, phone, or MAC" style="min-width:280px">
     <button class="btn btn--secondary btn--sm" type="submit">Search</button>
+    {% if q %}<a class="btn btn--ghost btn--sm" href="{% url 'panel:customers' %}">Clear</a>{% endif %}
   </form>
 </div>
+
+{% if matching_payments %}
+<div class="card data-card" style="margin-bottom:20px">
+  <div style="padding:16px 20px 8px; border-bottom:1px solid rgba(20,33,61,0.08)">
+    <h3 style="margin:0; font-size:1rem">Matching Payments</h3>
+  </div>
+  <table>
+    <thead>
+      <tr><th scope="col">Reference</th><th scope="col">Provider / Receipt</th><th scope="col">Device / Phone</th><th scope="col">Pass</th><th scope="col">Status</th><th scope="col" class="num">Amount</th><th scope="col">Created</th></tr>
+    </thead>
+    <tbody>
+      {% for p in matching_payments %}
+      <tr>
+        <td class="mono">{{ p.reference }}</td>
+        <td>
+          <span class="small">{{ p.get_provider_display }}</span>
+          {% if p.provider_reference %}<div class="mono small muted">{{ p.provider_reference }}</div>{% endif %}
+        </td>
+        <td>
+          {% if p.customer %}<div class="mono">{{ p.customer.mac_address }}</div>{% endif %}
+          <div class="small muted">{{ p.phone|default:"No phone" }}</div>
+        </td>
+        <td>{{ p.package.name }}</td>
+        <td>
+          {% if p.status == "paid" %}<span class="badge badge--ok">Paid</span>
+          {% elif p.status == "pending" %}<span class="badge badge--warn">Pending</span>
+          {% else %}<span class="badge badge--danger">Failed</span>{% endif %}
+        </td>
+        <td class="num">{{ isp.currency }} {{ p.amount|floatformat:0 }}</td>
+        <td class="small">{{ p.created_at|date:"d M, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <div class="card data-card">
   {% if rows %}
   <table>
     <thead>
-      <tr><th scope="col">Device</th><th scope="col">Phone</th><th scope="col">Current access</th><th scope="col">First seen</th><th scope="col" class="num">Paid to date</th></tr>
+      <tr>
+        <th scope="col">Device & Phone</th>
+        <th scope="col">Support code & Ref</th>
+        <th scope="col">Current access</th>
+        <th scope="col">First seen</th>
+        <th scope="col" class="num">Paid to date</th>
+        {% if request.membership.role != "readonly" %}<th scope="col">Actions</th>{% endif %}
+      </tr>
     </thead>
     <tbody>
       {% for row in rows %}
       <tr>
-        <td class="mono">{{ row.customer.mac_address }}</td>
-        <td>{% if row.customer.phone %}{{ row.customer.phone }}{% else %}<span class="muted">Not captured</span>{% endif %}</td>
+        <td>
+          <div class="mono">{{ row.customer.mac_address }}</div>
+          <div class="small muted">{% if row.customer.phone %}{{ row.customer.phone }}{% else %}Not captured{% endif %}</div>
+        </td>
         <td>
           {% if row.grant %}
-            {{ row.grant.package.name }} <span class="small muted">· {{ row.grant.time_left_label }} left</span>
+            <div class="mono" style="font-weight:600; color:#14213d">{{ row.grant.display_support_code }}</div>
+          {% elif row.latest_grant %}
+            <div class="mono muted">{{ row.latest_grant.display_support_code }}</div>
+          {% endif %}
+          {% if row.latest_payment %}
+            <div class="mono small muted">
+              {% if row.latest_payment.provider_reference %}{{ row.latest_payment.provider_reference }}{% else %}{{ row.latest_payment.reference }}{% endif %}
+            </div>
+          {% elif row.latest_voucher %}
+            <div class="mono small muted">Voucher: {{ row.latest_voucher.code }}</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.grant %}
+            <div><strong>{{ row.grant.package.name }}</strong></div>
+            <div class="small muted">{{ row.grant.time_left_label }} left · ends {{ row.grant.expires_at|date:"d M, H:i" }}</div>
+          {% elif row.latest_grant %}
+            <span class="badge badge--off">Ended</span>
+            <span class="small muted">{{ row.latest_grant.package.name }} · {{ row.latest_grant.expires_at|date:"d M, H:i" }}</span>
           {% else %}
-            <span class="badge badge--off">No active pass</span>
+            <span class="badge badge--off">No passes</span>
           {% endif %}
         </td>
         <td class="small">{{ row.customer.first_seen|date:"d M Y" }}</td>
         <td class="num">{{ isp.currency }} {{ row.spent|floatformat:0 }}</td>
+        {% if request.membership.role != "readonly" %}
+        <td>
+          {% if row.grant %}
+          <div class="row" style="gap:6px; flex-wrap:wrap">
+            <form method="post" action="{% url 'panel:extend_grant' row.grant.id %}" data-busy="Adding time">
+              {% csrf_token %}
+              <input type="hidden" name="minutes" value="30">
+              <button class="btn btn--quiet btn--sm" type="submit" title="Add 30 minutes">+30m</button>
+            </form>
+            <form method="post" action="{% url 'panel:revoke_grant' row.grant.id %}"
+                  data-confirm="Revoke access for this device? The guest loses access immediately."
+                  data-busy="Revoking access">
+              {% csrf_token %}
+              <button class="btn btn--danger btn--sm" type="submit">Revoke</button>
+            </form>
+          </div>
+          {% else %}
+            <span class="small muted">—</span>
+          {% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -40,9 +125,9 @@
   {% else %}
   <div style="padding:20px">
     <div class="empty">
-      <h3>{% if q %}No device matches "{{ q }}"{% else %}No customers yet{% endif %}</h3>
+      <h3>{% if q %}No record matches "{{ q }}"{% else %}No customers yet{% endif %}</h3>
       <p class="small" style="margin:0">
-        {% if q %}Try a partial device address, or the last four digits of the phone number.{% else %}A device appears here after it starts a checkout on the capture page.{% endif %}
+        {% if q %}Try searching by support code (e.g. PG-...), M-Pesa receipt (e.g. SH12...), payment reference, phone, or MAC.{% else %}A device appears here after it starts a checkout or redeems a voucher.{% endif %}
       </p>
     </div>
   </div>

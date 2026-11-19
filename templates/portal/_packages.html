@@ -95,6 +95,23 @@ belongs to which pass.
   </div>
 </form>
 
+<div class="or"><span>or</span></div>
+
+<form id="reconcile-form" method="post" action="/portal/{{ isp.slug }}/reconcile/"
+      class="stack-8" data-busy="Checking payment">
+  {% csrf_token %}
+  <input type="hidden" name="mac" value="{{ mac }}">
+  <label for="reconcile-code">Already paid? Reconnect device</label>
+  <div class="row" style="gap:8px; align-items:stretch">
+    <input id="reconcile-code" name="code" type="text" inputmode="text" autocapitalize="characters"
+           autocomplete="off" required placeholder="M-Pesa code or ref (e.g. SH12ABC345)" class="mono"
+           style="text-transform:uppercase; letter-spacing:.04em">
+    <button class="btn btn--secondary" type="submit" style="white-space:nowrap"
+            {% if not mac %}disabled aria-disabled="true"{% endif %}>Reconnect</button>
+  </div>
+  <p class="help" style="margin:0">Enter your M-Pesa transaction code, payment reference, or support code.</p>
+</form>
+
 <script>
   (function () {
     var form = document.getElementById('pass-form');

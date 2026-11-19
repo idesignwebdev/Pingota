@@ -430,6 +430,202 @@ def redeem_voucher(request, isp):
 
 
 @portal_access
+@require_POST
+def reconcile(request, isp):
+    """Auto-reconcile a transaction reference, M-Pesa receipt, or support code.
+
+    A customer who already paid via M-Pesa or card — or holding a voucher/support
+    code — can enter their reference to activate access on their device immediately
+    without waiting for webhooks or asking the operator.
+    """
+    raw_code = (request.POST.get("code") or request.POST.get("reference") or "").strip()
+    mac = mac_from_request(request) or request.session.get("portal_mac", "")
+    if not raw_code:
+        return render(
+            request,
+            "portal/error.html",
+            {"isp": isp, "message": "Enter your transaction ID, payment reference, or voucher/support code."},
+            status=400,
+        )
+    if not mac:
+        return render(
+            request,
+            "portal/error.html",
+            {"isp": isp, "message": "We could not read this device's address. Reconnect to the Wi-Fi and try again."},
+            status=400,
+        )
+
+    blocked = enforce_request_limit(
+        request,
+        "reconcile_mac",
+        10,
+        300,
+        identifier=mac,
+        template="portal/rate_limited.html",
+        context={"isp": isp},
+        retry_url=f"/portal/{isp.slug}/",
+        retry_label="Back to portal",
+    )
+    if blocked is not None:
+        return blocked
+
+    request.session["portal_mac"] = mac
+    code = raw_code.strip()
+    clean_code = re.sub(r"[^A-Za-z0-9_-]", "", code)
+
+    from django.db.models import Q
+
+    from apps.billing.models import WebhookEvent
+    from apps.billing.service import fail_payment, settle_payment
+    from apps.billing.views import _apply_verification
+    from apps.network.models import Customer
+    from apps.network.provisioning import activate_grant, open_grant
+    from apps.network.vouchers import VoucherError, redeem
+
+    # 1. Search Payment matching reference, provider_reference (e.g. M-Pesa receipt), or raw response
+    payment = (
+        Payment.objects.filter(isp=isp)
+        .filter(
+            Q(reference__iexact=clean_code)
+            | Q(provider_reference__iexact=clean_code)
+            | Q(raw_response__icontains=clean_code)
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+    if payment:
+        if payment.status == "pending":
+            if payment.provider == "paystack":
+                try:
+                    verified = paystack.verify(payment.reference, isp)
+                    _apply_verification(payment, verified)
+                except Exception as exc:
+                    log.warning("reconcile paystack verify failed for %s: %s", payment.reference, exc)
+            elif payment.provider == "mpesa":
+                # Check recent WebhookEvent for M-Pesa receipt or checkout id
+                events = WebhookEvent.objects.filter(provider="mpesa").order_by("-received_at")[:50]
+                matched = False
+                for ev in events:
+                    raw_str = str(ev.payload)
+                    if (clean_code.upper() in raw_str.upper()) or (
+                        payment.provider_reference and payment.provider_reference in raw_str
+                    ):
+                        parsed = mpesa.parse_callback(ev.payload)
+                        if str(parsed.get("result_code")) == "0":
+                            settle_payment(
+                                payment,
+                                provider_reference=parsed.get("receipt") or clean_code,
+                                raw=ev.payload,
+                            )
+                            matched = True
+                            break
+                if not matched and isp.mpesa and isp.mpesa.enabled and payment.provider_reference:
+                    try:
+                        res = mpesa.query_stk_status(payment)
+                        if str(res.get("ResultCode")) == "0":
+                            settle_payment(payment, provider_reference=clean_code, raw=res)
+                        elif res.get("ResultCode") not in (None, "", "1037"):
+                            fail_payment(payment, res.get("ResultDesc") or "failed")
+                    except Exception as exc:
+                        log.warning("reconcile mpesa query failed for %s: %s", payment.reference, exc)
+
+        payment.refresh_from_db()
+        if payment.status == "paid":
+            customer, _ = Customer.objects.get_or_create(
+                isp=isp, mac_address=mac, defaults={"phone": payment.phone}
+            )
+            grant = payment.grant or _live_grant(isp, mac)
+            if not grant or not grant.is_live:
+                grant = open_grant(isp, mac=mac, package=payment.package, phone=payment.phone)
+                payment.grant = grant
+                payment.customer = customer
+                payment.save(update_fields=["grant", "customer"])
+            elif grant.customer.mac_address != mac:
+                grant.customer = customer
+                grant.save(update_fields=["customer"])
+
+            try:
+                activate_grant(grant)
+            except Exception as exc:
+                log.warning("reconcile grant activate failed: %s", exc)
+
+            connect = _hotspot_login_url(request, grant)
+            if connect:
+                return redirect(connect)
+            return redirect("portal:status", isp_slug=isp.slug, reference=payment.reference)
+
+        if payment.status == "failed":
+            return render(
+                request,
+                "portal/error.html",
+                {
+                    "isp": isp,
+                    "message": f"Payment {clean_code} failed or was cancelled ({payment.failure_reason or 'declined'}). Try choosing a pass to pay again.",
+                },
+                status=400,
+            )
+
+    # 2. Check if code is a Voucher code
+    try:
+        voucher, grant = redeem(isp, clean_code, mac)
+        connect = _hotspot_login_url(request, grant)
+        if connect:
+            return redirect(connect)
+        return redirect("portal:isp_index", isp_slug=isp.slug)
+    except VoucherError:
+        pass
+
+    # 3. Check if code matches an AccessGrant support code or ID
+    grant = (
+        AccessGrant.objects.filter(isp=isp)
+        .filter(
+            Q(support_code__iexact=clean_code)
+            | Q(id__icontains=clean_code.lower())
+        )
+        .order_by("-started_at")
+        .first()
+    )
+    if grant:
+        if grant.is_live:
+            if grant.customer.mac_address != mac:
+                customer, _ = Customer.objects.get_or_create(isp=isp, mac_address=mac)
+                grant.customer = customer
+                grant.save(update_fields=["customer"])
+            try:
+                activate_grant(grant)
+            except Exception as exc:
+                log.warning("reconcile grant activate error: %s", exc)
+            connect = _hotspot_login_url(request, grant)
+            if connect:
+                return redirect(connect)
+            return redirect("portal:my_pass", isp_slug=isp.slug)
+        else:
+            return render(
+                request,
+                "portal/error.html",
+                {
+                    "isp": isp,
+                    "message": f"Pass with support code {grant.display_support_code} ended on {grant.expires_at.strftime('%d %b, %H:%M')}. Buy another pass to get online.",
+                },
+                status=400,
+            )
+
+    return render(
+        request,
+        "portal/error.html",
+        {
+            "isp": isp,
+            "message": (
+                f"We could not find a confirmed payment, voucher, or pass matching '{clean_code}'. "
+                "Check the transaction code in your M-Pesa SMS or receipt and try again, or ask the operator for help."
+            ),
+        },
+        status=404,
+    )
+
+
+@portal_access
 def status(request, isp, reference: str):
     payment = get_object_or_404(Payment, reference=reference, isp=isp)
     # Prefer the grant created by this payment so an expired pass shows as
