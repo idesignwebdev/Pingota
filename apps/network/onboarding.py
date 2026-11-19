@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import ipaddress
 import secrets
+from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -104,7 +105,8 @@ def install_script(router) -> str:
     """RouterOS commands the ISP pastes in one go.
 
     TunGuard registers each peer before this script is shown. The block is
-    idempotent: it replaces the tunnel, API user and firewall rule.
+    idempotent: it replaces the tunnel, API user, firewall rule and captive
+    portal, and fetches the portal's login page onto the router.
     """
     from core.crypto import decrypt
 
@@ -120,10 +122,12 @@ def install_script(router) -> str:
     tunnel = ipaddress.ip_network(TUNNEL_SUBNET)
     server_ip = str(tunnel.network_address + 1)
     report = f"{settings.PUBLIC_BASE_URL}/routers/{router.install_token}/report/"
+    panel_host = urlparse(settings.PUBLIC_BASE_URL).hostname or settings.ROUTER_TUNNEL_HOST
+    login_page = f"{settings.PUBLIC_BASE_URL}/portal/{router.isp.slug}/hotspot/login.html"
 
     return f"""# Pingota install — {router.isp.name} / {router.name}
 # RouterOS 7. Paste this whole block, then wait about ten seconds.
-# Safe to run twice: the tunnel, API user and firewall rule are replaced.
+# Safe to run twice: the tunnel, API user, firewall rule and captive portal are replaced.
 
 /interface/wireguard/remove [find name="pingota-wg"]
 /user/remove [find name="{router.api_user}"]
@@ -142,6 +146,19 @@ def install_script(router) -> str:
 /ip/service/set api address="{server_ip}/32" disabled=no
 /ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8728 \\
   src-address="{server_ip}" comment="pingota api" place-before=0
+
+/ip hotspot/remove [find name="pingota-hs"]
+/ip hotspot/remove [find interface="{router.hotspot_interface}"]
+/ip hotspot/profile/remove [find name="pingota"]
+/ip hotspot/profile/add name="pingota" login-by=mac,cookie,http-chap,http-pap html-directory=hotspot
+/ip hotspot/add name="pingota-hs" interface="{router.hotspot_interface}" profile="pingota" disabled=no comment="pingota"
+/ip hotspot/walled-garden/remove [find dst-host="{panel_host}"]
+/ip hotspot/walled-garden/remove [find dst-host="*.paystack.com"]
+/ip hotspot/walled-garden/remove [find dst-host="*.paystack.co"]
+/ip hotspot/walled-garden/add dst-host="{panel_host}" action=allow comment="pingota"
+/ip hotspot/walled-garden/add dst-host="*.paystack.com" action=allow comment="pingota"
+/ip hotspot/walled-garden/add dst-host="*.paystack.co" action=allow comment="pingota"
+/tool/fetch url="{login_page}" dst-path="hotspot/login.html" keep-result=no
 
 :delay 5
 :local pgVersion [/system/resource/get value-name=version]

@@ -30,8 +30,9 @@ class TunGuardClientTests(SimpleTestCase):
             install_token="one-time-token",
             api_user="pingota-ab12",
             api_password=encrypt("router-api-password"),
+            hotspot_interface="bridge",
             name="AP North",
-            isp=SimpleNamespace(name="North ISP"),
+            isp=SimpleNamespace(name="North ISP", slug="north"),
         )
 
         script = install_script(router)
@@ -44,6 +45,11 @@ class TunGuardClientTests(SimpleTestCase):
         # Hosts that filter ICMP would strand onboarding; the panel probes 8728 instead.
         self.assertNotIn("/ping ", script)
         self.assertIn("one-time-token", script)
+        # The captive portal is created here so the ISP never configures it by hand.
+        self.assertIn('interface="bridge" profile="pingota"', script)
+        self.assertIn('dst-host="pingota.example"', script)
+        self.assertIn("/portal/north/hotspot/login.html", script)
+        self.assertIn('dst-path="hotspot/login.html"', script)
 
     @mock.patch("apps.network.tunguard.urllib.request.urlopen")
     def test_register_router_uses_hex_key_and_single_host_route(self, urlopen):

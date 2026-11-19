@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url={{ portal_url }}">
+<title>{{ isp.name }}</title>
+<style>
+  body { margin: 0; background: #FBF6EC; color: #14213D; font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 22rem; margin: 0 auto; padding: 3.5rem 1.25rem; }
+  h1 { font-family: "Poppins", "Segoe UI", system-ui, sans-serif; font-size: 1.25rem; margin: 0 0 0.5rem; }
+  p { color: rgba(20, 33, 61, 0.76); line-height: 1.5; margin: 0 0 1.5rem; }
+  a { display: block; padding: 0.9rem 1rem; border-radius: 6px; background: #F28C28; color: #14213D; text-decoration: none; text-align: center; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>{{ isp.name }}</h1>
+  <p>Opening the Wi-Fi sign-in page. If nothing happens, tap the button.</p>
+  <a href="{{ portal_url }}">Open the sign-in page</a>
+</main>
+</body>
+</html>

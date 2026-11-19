@@ -35,6 +35,7 @@ urlpatterns = [
     # Router onboarding
     path("admin/routers/add/", onboarding_views.add_router, name="router_add"),
     path("admin/routers/<uuid:router_id>/", onboarding_views.router_detail, name="router_detail"),
+    path("admin/routers/<uuid:router_id>/state/", onboarding_views.router_state, name="router_state"),
     path("admin/routers/<uuid:router_id>/regenerate/", onboarding_views.regenerate, name="router_regenerate"),
     # Vouchers
     path("admin/vouchers/", voucher_views.list_vouchers, name="vouchers"),

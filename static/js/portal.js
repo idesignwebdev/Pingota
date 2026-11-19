@@ -59,6 +59,11 @@
         if (label) label.textContent = describe(state);
 
         if (state.grant && state.grant.state === "active" && state.grant.seconds_left > 0) {
+          if (state.connect_url) {
+            if (note) note.textContent = "Pass active. Signing this device in.";
+            window.location.href = state.connect_url;
+            return;
+          }
           if (note) note.textContent = "Access is active. Reloading this page.";
           window.location.reload();
           return;

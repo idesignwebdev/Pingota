@@ -135,6 +135,11 @@ class Router(UUIDModel):
         default="default",
         help_text="Hotspot user profile that carries the default bandwidth limit",
     )
+    hotspot_interface = models.CharField(
+        max_length=60,
+        default="bridge",
+        help_text="Bridge or wireless interface the captive portal runs on",
+    )
 
     # --- onboarding -------------------------------------------------------
     status = models.CharField(max_length=12, choices=STATUS, default="pending")

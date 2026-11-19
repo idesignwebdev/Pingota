@@ -168,19 +168,20 @@ class PanelNavigationTests(TestCase):
 
     def test_panel_nav_links_are_present(self):
         response = self.client.get("/admin/")
-        for label in (
-            "Overview",
-            "Live access",
-            "Customers",
-            "Passes",
-            "Vouchers",
-            "Network",
-            "Revenue",
-            "Team",
-            "Settings",
+        # Match the destinations, not the labels: wording changes should not
+        # break a navigation test.
+        for href in (
+            "/admin/live/",
+            "/admin/customers/",
+            "/admin/packages/",
+            "/admin/vouchers/",
+            "/admin/network/",
+            "/admin/revenue/",
+            "/admin/team/",
+            "/admin/settings/",
         ):
-            with self.subTest(label=label):
-                self.assertContains(response, label)
+            with self.subTest(href=href):
+                self.assertContains(response, f'href="{href}"')
 
     def test_owner_can_still_open_django_admin(self):
         owner = get_user_model().objects.create_superuser(
@@ -679,3 +680,46 @@ class ErrorPageTests(TestCase):
         self.assertIn("This page could not load", body)
         self.assertIn("Pingota", body)
         self.assertNotIn("Traceback", body)
+
+
+class RouterInstallStateTests(TestCase):
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Net", slug="net")
+        self.operator = operator_for(self.isp)
+        self.router = Router.objects.create(
+            isp=self.isp, name="Juja", tunnel_address="10.100.0.2"
+        )
+
+    def test_pending_router_reports_waiting(self):
+        self.client.force_login(self.operator)
+        response = self.client.get(f"/admin/routers/{self.router.id}/state/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"health_state": "pending"})
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+    def test_connected_router_reports_online(self):
+        self.client.force_login(self.operator)
+        self.router.status = "connected"
+        self.router.last_status = "online"
+        self.router.save(update_fields=["status", "last_status"])
+        response = self.client.get(f"/admin/routers/{self.router.id}/state/")
+        self.assertEqual(response.json()["health_state"], "online")
+
+    def test_another_isp_cannot_read_the_state(self):
+        other = Isp.objects.create(name="Other", slug="other")
+        self.client.force_login(operator_for(other, username="other-ops"))
+        response = self.client.get(f"/admin/routers/{self.router.id}/state/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_signed_out_readers_are_redirected(self):
+        response = self.client.get(f"/admin/routers/{self.router.id}/state/")
+        self.assertEqual(response.status_code, 302)
+
+    def test_install_page_polls_instead_of_asking_for_a_refresh(self):
+        self.client.force_login(self.operator)
+        response = self.client.get(f"/admin/routers/{self.router.id}/")
+        self.assertContains(
+            response, f'data-state-url="/admin/routers/{self.router.id}/state/"'
+        )
+        self.assertContains(response, "This page updates by itself.")
+        self.assertNotContains(response, "Refresh this page</a>")

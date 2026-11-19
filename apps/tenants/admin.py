@@ -52,7 +52,7 @@ class RouterAdmin(admin.ModelAdmin):
         "created_at",
     )
     fieldsets = (
-        ("Identity", {"fields": ("isp", "name", "status", "enabled", "hotspot_profile")}),
+        ("Identity", {"fields": ("isp", "name", "status", "enabled", "hotspot_profile", "hotspot_interface")}),
         ("Tunnel", {"fields": ("tunnel_address", "tunnel_public_key", "host", "port")}),
         ("Access", {"fields": ("api_user", "install_token_masked")}),
         ("Reported", {"fields": ("routeros_version", "board_name", "installed_at", "last_seen_at", "last_status")}),

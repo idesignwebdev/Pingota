@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 from functools import wraps
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -20,6 +21,7 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.billing import mpesa, paystack
 from apps.billing.models import Payment
 from apps.billing.service import mac_from_request
+from apps.network.mikrotik import hotspot_user_name, normalise_mac
 from apps.network.models import AccessGrant, Package
 from apps.tenants.models import Isp
 from core.security import enforce_request_limit
@@ -94,7 +96,19 @@ def index(request, isp):
     mac = mac_from_request(request)
     if mac:
         request.session["portal_mac"] = mac
+    # MikroTik hands these in from the hotspot login page; the status poller
+    # needs them to sign the device in once the pass exists.
+    link_login_only = (request.GET.get("link-login-only") or "")[:200]
+    if link_login_only:
+        request.session["hotspot_link_login_only"] = link_login_only
+        request.session["hotspot_link_orig"] = (request.GET.get("link-orig") or "")[:300]
     live = _live_grant(isp, mac)
+    if live and link_login_only:
+        # Coming back to the portal with a pass already paid for: finish the
+        # router login instead of showing "you are online" on an offline device.
+        connect = _hotspot_login_url(request, live)
+        if connect:
+            return redirect(connect)
     return render(
         request,
         "portal/index.html",
@@ -388,9 +402,52 @@ def status_state(request, isp, reference: str):
                 if grant
                 else None
             ),
-            "connect_url": request.session.get("hotspot_link_login_only", ""),
+            "connect_url": _hotspot_login_url(request, grant),
         }
     )
+
+
+def _hotspot_login_url(request, grant) -> str:
+    """RouterOS login URL that signs the device in once its pass exists.
+
+    The hotspot login page handed us ``link-login-only``; submitting the user
+    the panel created turns "paid" into "online" without the guest retyping
+    anything. The password is the device MAC, which the router already knows.
+    """
+    link = request.session.get("hotspot_link_login_only", "")
+    mac = request.session.get("portal_mac", "")
+    if not (link and mac and grant and grant.state == "active" and grant.seconds_left > 0):
+        return ""
+    try:
+        params = {
+            "username": hotspot_user_name(mac),
+            "password": normalise_mac(mac).replace(":", ""),
+        }
+    except ValueError:
+        return ""
+    original = request.session.get("hotspot_link_orig", "")
+    if original:
+        params["dst"] = original
+    return f"{link}?{urlencode(params)}"
+
+
+@require_GET
+def hotspot_login(request, isp_slug):
+    """The login page the router downloads over ``/tool fetch``.
+
+    MikroTik substitutes ``$(mac)`` and ``$(link-login-only)`` while serving
+    this file, so they have to arrive at the router untouched.
+    """
+    isp = get_object_or_404(Isp, slug=isp_slug)
+    portal_url = (
+        f"{settings.PUBLIC_BASE_URL}/portal/{isp.slug}/"
+        "?mac=$(mac)&link-login-only=$(link-login-only)&link-orig=$(link-orig)"
+    )
+    response = render(
+        request, "portal/hotspot_login.html", {"isp": isp, "portal_url": portal_url}
+    )
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @portal_access

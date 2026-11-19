@@ -107,6 +107,93 @@ class PortalTests(TestCase):
         self.assertEqual(self.client.get("/portal/nope/").status_code, 404)
 
 
+class HotspotHandoffTests(TestCase):
+    """The router-derived login page and the post-payment sign-in hand-off."""
+
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Test Net", slug="demo-hotspot")
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.customer = Customer.objects.create(
+            isp=self.isp, mac_address="A4:5E:60:1C:92:0B"
+        )
+
+    def test_login_page_carries_the_portal_redirect(self):
+        response = self.client.get("/portal/demo-hotspot/hotspot/login.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/portal/demo-hotspot/")
+        self.assertContains(response, "mac=$(mac)")
+        self.assertContains(response, "link-login-only=$(link-login-only)")
+        self.assertEqual(response["Cache-Control"], "no-store")
+
+    def test_status_hands_back_a_router_login_once_the_pass_is_live(self):
+        payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            reference="pg-handoff",
+            amount=Decimal("10"),
+            status="paid",
+        )
+        AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timezone.timedelta(minutes=60),
+        )
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+            "&link-orig=http://example.com/news"
+        )
+
+        state = self.client.get(
+            f"/portal/demo-hotspot/status/{payment.reference}/state/"
+        ).json()
+
+        self.assertTrue(state["connect_url"].startswith("http://192.168.88.1/login?"))
+        self.assertIn("username=pg-a45e601c920b", state["connect_url"])
+        self.assertIn("password=A45E601C920B", state["connect_url"])
+        self.assertIn("dst=http%3A%2F%2Fexample.com%2Fnews", state["connect_url"])
+
+    def test_reopening_the_portal_with_a_pass_signs_the_device_in(self):
+        AccessGrant.objects.create(
+            isp=self.isp,
+            customer=self.customer,
+            package=self.package,
+            started_at=timezone.now(),
+            expires_at=timezone.now() + timezone.timedelta(minutes=60),
+        )
+        response = self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith("http://192.168.88.1/login?"))
+
+    def test_status_has_no_login_url_before_the_pass_exists(self):
+        payment = Payment.objects.create(
+            isp=self.isp,
+            package=self.package,
+            customer=self.customer,
+            reference="pg-waiting",
+            amount=Decimal("10"),
+            status="pending",
+        )
+        self.client.get(
+            "/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B"
+            "&link-login-only=http://192.168.88.1/login"
+        )
+
+        state = self.client.get(
+            f"/portal/demo-hotspot/status/{payment.reference}/state/"
+        ).json()
+
+        self.assertEqual(state["connect_url"], "")
+
+
 @override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY)
 class OnboardingTests(TestCase):
     def setUp(self):

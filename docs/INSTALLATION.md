@@ -156,28 +156,43 @@ The script then installs the matching private key and:
 | `/user/group/add` + `/user/add` | API user limited to `read,write,api,test`; no reboot, no policy, no sensitive |
 | `/ip/service/set api address=…/32` | API port reachable only from Pingota's tunnel address |
 | `/ip/firewall/filter/add …` | Explicit accept for port 8728 from Pingota's tunnel address |
+| `/ip hotspot/…` | Captive portal on the guest bridge (see below) |
 | `/tool/fetch …report/` | Tells the panel the install worked |
 
-Safe to paste twice: the tunnel and user are replaced, not duplicated.
+Safe to paste twice: the tunnel, user and portal are replaced, not duplicated. Guests online at that
+moment are dropped and must sign in again.
 
-### Point the hotspot at the capture page
+### Captive portal
 
-In `/ip/hotspot/profile`, set the login page to your portal:
+The install script builds the portal, so there is nothing to create by hand. It runs on the guest
+bridge you type into **Add router** (default `bridge` — the bridge that carries your Wi-Fi, not the
+uplink) and adds:
+
+| Line | Purpose |
+| --- | --- |
+| `/ip hotspot/profile/add` | Hotspot profile `pingota`, `login-by=mac,cookie,http-chap,http-pap` |
+| `/ip hotspot/add` | Hotspot server `pingota-hs` on the guest bridge |
+| `/ip hotspot/walled-garden/add` | Panel host and Paystack, so guests can reach the page and pay while still offline |
+| `/tool/fetch … /hotspot/login.html` | Replaces MikroTik's login page with one that redirects to the portal |
+
+That login page comes from `/portal/<isp-slug>/hotspot/login.html` and forwards the guest to
+`/portal/<isp-slug>/?mac=$(mac)&link-login-only=$(link-login-only)`. Without `?mac=` the portal shows
+prices but leaves the buy buttons disabled, which is how a page opened outside the hotspot is
+treated.
+
+If the bridge name is wrong, the hotspot line answers `input does not match any value of interface`
+and the rest of the block still applies. Fix the name (regenerate credentials in the panel, then
+paste again) and check:
 
 ```
-/ip hotspot profile set [find] login-by=mac,cookie,http-chap
-/ip hotspot walled-garden add dst-host=<your-domain> action=allow
+/ip hotspot print
+/file print where name~"hotspot"
 ```
 
-The capture page reads the device MAC from the hotspot redirect (`?mac=$(mac)`); without it the guest
-sees prices but the buttons stay disabled. For the common one-AP setup the MikroTik `login.html`
-contains a redirect to:
+Once a pass is paid, the status page sends the device to the router's `link-login-only` URL with the
+hotspot user the panel created, so the guest lands online without retyping anything.
 
-```
-https://your-domain/portal/<isp-slug>/?mac=$(mac)&link-login-only=$(link-login-only)
-```
-
-### Bandwidth profiles
+Bandwidth profiles
 
 Passes name a hotspot profile. Create them once on the router:
 

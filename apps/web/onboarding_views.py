@@ -29,6 +29,9 @@ def add_router(request):
     if not name:
         messages.error(request, "Give the router a name, such as the location it serves.")
         return redirect("panel:network")
+    guest_interface = (request.POST.get("hotspot_interface") or "bridge").strip()[:60] or "bridge"
+    # Interface names may contain spaces ("Free Internet"), but never quotes.
+    guest_interface = guest_interface.replace('"', "").replace("\\", "").replace("\n", "")
 
     limit = isp.routers.count()
     from apps.tenants.models import SubscriptionPlan
@@ -41,7 +44,7 @@ def add_router(request):
         )
         return redirect("panel:network")
 
-    router = Router(isp=isp, name=name)
+    router = Router(isp=isp, name=name, hotspot_interface=guest_interface)
     onboarding.provision_identity(router)
     registered = False
     try:
@@ -83,6 +86,18 @@ def router_detail(request, router_id):
             "tunnel_port": settings.ROUTER_TUNNEL_PORT,
             "events": SessionEvent.objects.filter(router=router)[:10],
         },
+    )
+
+
+@staff_required
+@require_GET
+def router_state(request, router_id):
+    """What the install page polls while it waits for the router's report."""
+    isp = current_isp(request)
+    router = get_object_or_404(Router, pk=router_id, isp=isp)
+    return JsonResponse(
+        {"health_state": router.health_state},
+        headers={"Cache-Control": "no-store"},
     )
 
 
