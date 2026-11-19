@@ -89,6 +89,19 @@ def _rails(isp: Isp) -> list[str]:
     return rails
 
 
+def _known_customer(isp: Isp, mac: str):
+    """The device's earlier visit, so the form starts filled in."""
+    from apps.network.models import Customer
+
+    if not mac:
+        return None
+    try:
+        mac = normalise_mac(mac)
+    except ValueError:
+        return None
+    return Customer.objects.filter(isp=isp, mac_address=mac).first()
+
+
 def _live_grant(isp: Isp, mac: str):
     if not mac:
         return None
@@ -129,6 +142,7 @@ def index(request, isp):
             "live": live,
             "packages_qs": isp.packages.filter(is_active=True),
             "providers": _rails(isp),
+            "known_customer": _known_customer(isp, mac),
             "hotspot": {
                 "link_login_only": request.GET.get("link-login-only", ""),
                 "link_orig": request.GET.get("link-orig", ""),
@@ -159,6 +173,7 @@ def packages(request, isp):
             "mac": mac,
             "packages_qs": isp.packages.filter(is_active=True),
             "providers": _rails(isp),
+            "known_customer": _known_customer(isp, mac),
             "selected_package": selected,
         },
     )

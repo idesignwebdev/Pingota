@@ -45,6 +45,7 @@ belongs to which pass.
   <div>
     <label for="phone">Phone number</label>
     <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required
+           value="{{ known_customer.phone|default:'' }}"
            placeholder="0712 345 678" aria-describedby="phone-help">
     <p class="help" id="phone-help">Used for the M-Pesa prompt and your receipt.</p>
   </div>

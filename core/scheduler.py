@@ -1,7 +1,8 @@
 """In-process sweeper.
 
-One background thread per web container, started once from AppConfig.ready().
-It does three things on a short loop:
+One background thread per container, started once from AppConfig.ready(). A lock
+file keeps it single even when gunicorn runs several workers. It does three
+things on a short loop:
 
 * close grants whose time ran out (and remove them from the router)
 * retry provisioning for paid grants whose router was unreachable
@@ -26,6 +27,8 @@ log = logging.getLogger(__name__)
 
 _started = False
 _lock = threading.Lock()
+#: Kept open for the life of the process; closing it would release the lock.
+_singleton_handle = None
 
 #: router id -> monotonic time before which it is not worth dialling again.
 #: A router that just timed out should not be retried every tick: each attempt
@@ -101,6 +104,30 @@ def tick() -> dict:
     return result
 
 
+def _claim_singleton() -> bool:
+    """One loop per container, not one per gunicorn worker.
+
+    ``threading.Lock`` only serialises threads, and gunicorn workers are
+    processes: with two workers every router was sampled twice and every alert
+    was sent twice. The lock file sits on the data volume, so a second
+    container sharing that volume is covered as well.
+    """
+    global _singleton_handle
+    try:
+        import fcntl
+    except ImportError:  # Windows developer machine
+        return True
+    path = settings.DATA_DIR / "scheduler.lock"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(path, "a+")
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    _singleton_handle = handle
+    return True
+
+
 def start() -> None:
     """Start the loop if this process should run it (not during migrations)."""
     global _started
@@ -122,6 +149,10 @@ def start() -> None:
         if _started:
             return
         _started = True
+
+    if not _claim_singleton():
+        log.info("scheduler already running in another worker of this container")
+        return
 
     def loop():
         last_health = 0.0

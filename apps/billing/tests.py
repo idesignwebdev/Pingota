@@ -195,6 +195,15 @@ class HotspotHandoffTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response["Location"].startswith("http://192.168.88.1/login?"))
 
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_platform")
+    def test_returning_device_finds_its_phone_filled_in(self):
+        self.customer.phone = "0712345678"
+        self.customer.save(update_fields=["phone"])
+
+        response = self.client.get("/portal/demo-hotspot/?mac=A4:5E:60:1C:92:0B")
+
+        self.assertContains(response, 'value="0712345678"')
+
     def test_status_has_no_login_url_before_the_pass_exists(self):
         payment = Payment.objects.create(
             isp=self.isp,

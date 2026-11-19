@@ -3,10 +3,12 @@ import json
 from types import SimpleNamespace
 from unittest import mock
 
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
+from apps.network.mikrotik import RouterError, record_health
 from apps.network.onboarding import install_script
 from apps.network.tunguard import register_router, server_public_key
+from apps.tenants.models import Isp, Router
 from core.crypto import encrypt
 
 TEST_KEY = "ZMD6DO1R8ZmXwA-qxTiemkgDNI3ZqSWbaSyoZWCSe5Q="
@@ -112,6 +114,53 @@ class TunGuardClientTests(SimpleTestCase):
             ),
             ["/ip/hotspot/user/add", "=name=pg-x", "=limit-uptime=60m", "=.id=*1"],
         )
+
+
+@override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY)
+class HealthHysteresisTests(TestCase):
+    """One timeout is not an outage."""
+
+    def setUp(self):
+        from apps.network.mikrotik import _health_misses
+
+        _health_misses.clear()
+        self.isp = Isp.objects.create(name="Net", slug="net")
+        self.router = Router.objects.create(
+            isp=self.isp, name="AP1", status="connected", last_status="online"
+        )
+
+    @mock.patch("core.alerts.notify_router_down")
+    @mock.patch("apps.network.mikrotik.RouterConnection")
+    def test_one_timeout_keeps_the_badge_and_stays_quiet(self, connection, notify):
+        connection.side_effect = RouterError("10.100.0.2:8728 unreachable")
+
+        record_health(self.router)
+        self.router.refresh_from_db()
+        self.assertEqual(self.router.last_status, "online")
+        notify.assert_not_called()
+
+        record_health(self.router)
+        self.router.refresh_from_db()
+        self.assertIn("unreachable", self.router.last_status)
+        notify.assert_called_once()
+
+    @mock.patch("core.alerts.notify_router_down")
+    @mock.patch("apps.network.mikrotik.RouterConnection")
+    def test_a_success_resets_the_count(self, connection, notify):
+        api = connection.return_value.__enter__.return_value
+        api.command.side_effect = lambda cmd, **kwargs: {
+            "/system/identity/print": [{"name": "MikroTik"}],
+            "/system/resource/print": [{"cpu-load": "5"}],
+            "/ip/hotspot/active/print": [],
+        }[cmd]
+
+        record_health(self.router)
+        connection.side_effect = RouterError("timed out")
+        record_health(self.router)
+        self.router.refresh_from_db()
+
+        self.assertEqual(self.router.last_status, "online")
+        notify.assert_not_called()
 
 
 class TunnelEndpointHostTests(SimpleTestCase):

@@ -34,6 +34,11 @@ log = logging.getLogger(__name__)
 MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,60}$")
 
+#: Consecutive failed health samples per router. One timeout is usually a
+#: WireGuard re-handshake or a busy CPU, not an outage.
+HEALTH_MISSES_BEFORE_OFFLINE = 2
+_health_misses: dict[str, int] = {}
+
 
 class RouterError(RuntimeError):
     """Router replied with an error."""
@@ -413,6 +418,7 @@ def record_health(router) -> None:
             active = api.command("/ip/hotspot/active/print")
         latency = int((time.monotonic() - started) * 1000)
         info = (resource or [{}])[0]
+        _health_misses.pop(str(router.pk), None)
         router.last_seen_at = timezone.now()
         router.last_status = "online"
         router.save(update_fields=["last_seen_at", "last_status"])
@@ -424,11 +430,19 @@ def record_health(router) -> None:
             latency_ms=latency,
         )
     except (RouterError, ValueError, OSError) as exc:
+        key = str(router.pk)
+        misses = _health_misses.get(key, 0) + 1
+        _health_misses[key] = misses
+        RouterMetric.objects.create(router=router, reachable=False, latency_ms=0)
+        log.warning("router health failed (%s/%s): %s -> %s", misses, HEALTH_MISSES_BEFORE_OFFLINE, router, exc)
+        if misses < HEALTH_MISSES_BEFORE_OFFLINE:
+            # A single timeout is usually a WireGuard re-handshake, a guest
+            # login burst or a busy CPU. Keep the badge and skip the alert; the
+            # metric row still records the miss.
+            return
         was_online = router.last_status == "online"
         router.last_status = str(exc)[:120]
         router.save(update_fields=["last_status"])
-        RouterMetric.objects.create(router=router, reachable=False, latency_ms=0)
-        log.warning("router health failed: %s -> %s", router, exc)
         if was_online:
             try:
                 from core import alerts
