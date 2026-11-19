@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Live access</h1>
-    <p class="muted">Every device that currently holds a valid pass. Each pass carries its own router-side time limit.</p>
+    <p class="small muted">Real-time view of active passes and connected devices.</p>
   </div>
   <a class="btn btn--secondary btn--sm" href="{% url 'panel:live' %}">Refresh</a>
 </div>
@@ -56,7 +56,7 @@
   <div style="padding:20px">
     <div class="empty">
       <h3>No active packages</h3>
-      <p class="small" style="margin:0">When someone pays on the capture page, the device appears here within a second or two. If you expect traffic, check the event log for router errors.</p>
+      <p class="small muted">No device currently holds a valid pass.</p>
     </div>
   </div>
   {% endif %}
@@ -67,7 +67,6 @@
     <div class="row-between">
       <div>
         <h3 style="margin:0">Sessions on the router</h3>
-        <p class="small" style="margin:4px 0 0">Read live from RouterOS. A device can hold a pass but be offline.</p>
       </div>
       {% if router %}<span class="badge badge--info">{{ router.name }}</span>{% endif %}
     </div>
@@ -99,9 +98,12 @@
     </tbody>
   </table>
   {% else %}
-  <p class="small" style="padding:12px 20px 20px; margin:0">
-    {% if router %}The router reported no logged-in sessions.{% else %}No router configured yet. <a href="{% url 'panel:network' %}">Add one in Network</a>.{% endif %}
-  </p>
+  <div style="padding:20px">
+    <div class="empty">
+      <h3>No active sessions</h3>
+      <p class="small muted">No devices are currently connected to the router.</p>
+    </div>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

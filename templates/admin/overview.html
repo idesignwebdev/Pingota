@@ -46,7 +46,7 @@
           <span>{{ package.count }} sold, {{ isp.currency }} {{ package.total|floatformat:"0g" }}</span>
         </div>
       {% empty %}
-        <p class="small" style="margin:0">No sales in the last 24 hours. Passes appear here as soon as one is paid.</p>
+        <p class="small" style="margin:0">No sales in the last 24 hours.</p>
       {% endfor %}
     </div>
   </div>
@@ -96,7 +96,7 @@
     {% else %}
       <div class="empty">
         <h3>No payments yet</h3>
-        <p class="small" style="margin:0">When a guest pays on the capture page, the payment appears here with its reference and status.</p>
+        <p class="small" style="margin:0">Payments will appear here once they are received.</p>
       </div>
     {% endif %}
   </div>
