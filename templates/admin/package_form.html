@@ -4,9 +4,8 @@
 <div class="page-head">
   <div>
     <h1>{% if package %}Edit {{ package.name }}{% else %}New package{% endif %}</h1>
-    <p class="muted">Duration and speed are enforced by the router, not by a browser timer.</p>
+    <p class="muted">Duration and speed are enforced by the router.</p>
   </div>
-  <a class="small" href="{% url 'panel:packages' %}">Back to packages</a>
 </div>
 
 <form method="post" class="grid-lead" style="align-items:start" data-busy="Saving package">
@@ -113,11 +112,6 @@
       <button class="btn btn--primary" type="submit">{% if package %}Save pass{% else %}Create pass{% endif %}</button>
       <a class="btn btn--secondary" href="{% url 'panel:packages' %}">Cancel</a>
     </div>
-  </div>
-
-  <div class="card">
-    <h3>Sizing a pass</h3>
-    <p class="small" style="margin:0">A guest on a 5 Mbps link downloading a 700 MB update needs about 18 minutes. A pass shorter than that will feel broken even when it works.</p>
   </div>
 </form>
 {% endblock %}

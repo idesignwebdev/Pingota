@@ -7,6 +7,8 @@ JavaScript on the page is the status poller and the MAC capture.
 from __future__ import annotations
 
 import logging
+import re
+import secrets
 from decimal import Decimal
 from functools import wraps
 from urllib.parse import urlencode
@@ -242,9 +244,15 @@ def _checkout_impl(request, isp, package_id):
 
     session = request.session
     phone = (request.POST.get("phone") or session.get("pending_phone") or "").strip()
-    email = (
-        request.POST.get("email") or session.get("pending_email") or ""
-    ).strip() or f"guest@{isp.slug}.local"
+    raw_email = (request.POST.get("email") or session.get("pending_email") or "").strip()
+    if raw_email and "@" in raw_email and "." in raw_email.split("@")[-1]:
+        email = raw_email
+    else:
+        clean_num = re.sub(r"[^0-9]", "", phone)
+        clean_mac = re.sub(r"[^0-9a-fA-F]", "", mac)
+        guest_id = clean_num or clean_mac or secrets.token_hex(4)
+        clean_slug = re.sub(r"[^a-zA-Z0-9-]", "", isp.slug) or "guest"
+        email = f"guest.{guest_id}@{clean_slug}.pingota.co.ke"
     # Never call a provider the ISP has not configured: that used to end in a
     # 502, which Cloudflare replaced with its own error page.
     rails = _rails(isp)
@@ -429,10 +437,14 @@ def status(request, isp, reference: str):
     grant = payment.grant or (
         _live_grant(isp, payment.customer.mac_address) if payment.customer else None
     )
+    connect_url = _hotspot_login_url(request, grant) if (grant and grant.is_live) else ""
+    if connect_url and not request.GET.get("connected"):
+        return redirect(connect_url)
+
     return render(
         request,
         "portal/status.html",
-        {"isp": isp, "payment": payment, "grant": grant},
+        {"isp": isp, "payment": payment, "grant": grant, "connect_url": connect_url},
     )
 
 
@@ -469,16 +481,19 @@ def _hotspot_login_url(request, grant) -> str:
     anything. The password is the device MAC, which the router already knows.
     """
     link = request.session.get("hotspot_link_login_only", "")
-    mac = request.session.get("portal_mac", "")
+    mac = request.session.get("portal_mac", "") or (
+        grant.customer.mac_address if grant and grant.customer else ""
+    )
     if not (
-        link
-        and mac
+        mac
         and grant
         and grant.state == "active"
         and grant.seconds_left > 0
         and grant.revoked_reason != "waiting for router"
     ):
         return ""
+    if not link:
+        link = "http://192.168.88.1/login"
     try:
         params = {
             "username": hotspot_user_name(mac),
@@ -489,6 +504,18 @@ def _hotspot_login_url(request, grant) -> str:
     original = request.session.get("hotspot_link_orig", "")
     if original:
         params["dst"] = original
+    else:
+        status_ref = (
+            grant.payments.first().reference
+            if hasattr(grant, "payments") and grant.payments.exists()
+            else ""
+        )
+        if status_ref:
+            params["dst"] = (
+                f"{settings.PUBLIC_BASE_URL}/portal/{grant.isp.slug}/status/{status_ref}/?connected=1"
+            )
+        else:
+            params["dst"] = f"{settings.PUBLIC_BASE_URL}/portal/{grant.isp.slug}/?connected=1"
     return f"{link}?{urlencode(params)}"
 
 

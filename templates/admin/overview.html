@@ -7,7 +7,7 @@
     <p class="muted">{{ isp.name }}</p>
   </div>
   <div class="row" style="flex-wrap:wrap">
-    <a class="btn btn--secondary btn--sm" href="/portal/{{ isp.slug }}/" target="_blank" rel="noopener">Open capture page</a>
+    <a class="btn btn--secondary btn--sm" href="/portal/{{ isp.slug }}/" target="_blank" rel="noopener">Open captive portal</a>
     {% if request.membership.role != "readonly" %}<a class="btn btn--primary btn--sm" href="{% url 'panel:package_add' %}">New package</a>{% endif %}
   </div>
 </div>
@@ -21,7 +21,6 @@
     <p class="small" style="margin-top:8px">
       {% if decided %}
         {{ settled }} of {{ decided }} completed checkouts were paid ({{ success_rate }}%).
-        {% if success_rate < 70 %}Check that the payment keys are active and the webhook URL is reachable.{% endif %}
       {% else %}
         No checkout has been attempted in the last 24 hours.
       {% endif %}

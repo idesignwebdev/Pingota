@@ -67,10 +67,6 @@ docker compose up -d --build</code></pre>
               <div><h3>Wait for Connected</h3><p>The router reports its model and RouterOS version back to the panel. The block is safe to paste twice; nothing is duplicated.</p></div>
             </li>
           </ol>
-
-          <p>Point the hotspot login page at your portal. The capture page reads the device identity from the redirect:</p>
-          <pre class="code-block"><code>https://your-domain/portal/&lt;isp-slug&gt;/?mac=$(mac)&amp;link-login-only=$(link-login-only)</code></pre>
-          <p style="margin-top:16px">Without the redirect, a guest sees the prices but the payment buttons stay disabled. The full guide also shows the hotspot profile, walled-garden and bandwidth profile settings.</p>
         </section>
 
         <section id="payments" class="docs-section">

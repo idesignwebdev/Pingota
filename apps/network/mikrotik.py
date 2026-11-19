@@ -278,6 +278,7 @@ def add_hotspot_user(router, mac: str, profile: str, minutes: int, comment: str 
 
     with RouterConnection(router) as api:
         _remove_user(api, username)  # idempotent: replaces a stale pass
+        _remove_binding(api, mac)  # idempotent: replace existing binding
         api.command(
             "/ip/hotspot/user/add",
             name=username,
@@ -289,13 +290,19 @@ def add_hotspot_user(router, mac: str, profile: str, minutes: int, comment: str 
         )
         # The user is what grants access; the binding pins the MAC so the
         # device cannot log in with credentials on another machine.
-        api.command(
-            "/ip/hotspot/ip-binding/add",
-            mac_address=mac,
-            type="regular",
-            server="all",
-            comment=f"pingota:{username}"[:60],
-        )
+        try:
+            api.command(
+                "/ip/hotspot/ip-binding/add",
+                mac_address=mac,
+                type="regular",
+                server="all",
+                comment=f"pingota:{username}"[:60],
+            )
+        except RouterError as exc:
+            if "already exists" in str(exc).lower():
+                log.info("ip-binding for %s already exists; continuing", mac)
+            else:
+                raise
     return RouterResult(ok=True, message=f"Access enabled for {mac}", data=[{"username": username}])
 
 
@@ -305,9 +312,7 @@ def remove_access(router, mac: str) -> RouterResult:
     with RouterConnection(router) as api:
         _disconnect_active(api, mac, username)
         _remove_user(api, username)
-        for binding in api.command("/ip/hotspot/ip-binding/print", **{"?mac-address": mac}):
-            if binding.get(".id"):
-                api.command("/ip/hotspot/ip-binding/remove", **{".id": binding[".id"]})
+        _remove_binding(api, mac)
     return RouterResult(ok=True, message=f"Access removed for {mac}")
 
 
@@ -323,6 +328,17 @@ def _remove_user(api: RouterOSClient, username: str) -> None:
     for row in api.command("/ip/hotspot/user/print", **{"?name": username}):
         if row.get(".id"):
             api.command("/ip/hotspot/user/remove", **{".id": row[".id"]})
+
+
+def _remove_binding(api: RouterOSClient, mac: str) -> None:
+    norm_mac = mac.upper()
+    try:
+        for binding in api.command("/ip/hotspot/ip-binding/print"):
+            if binding.get("mac-address", "").upper() == norm_mac:
+                if binding.get(".id"):
+                    api.command("/ip/hotspot/ip-binding/remove", **{".id": binding[".id"]})
+    except Exception as exc:
+        log.warning("failed to remove existing ip-binding for %s: %s", mac, exc)
 
 
 def _disconnect_active(api: RouterOSClient, mac: str, username: str) -> int:

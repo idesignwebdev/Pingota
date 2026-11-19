@@ -10,8 +10,6 @@
     {% block portal %}{% endblock %}
     {% if isp.support_phone %}
       <p class="portal__help">Need help? Call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a></p>
-    {% else %}
-      <p class="portal__help">Need help? Ask the operator at the counter.</p>
     {% endif %}
   </main>
 </div>

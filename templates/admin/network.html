@@ -10,9 +10,9 @@
   <form method="post" action="{% url 'panel:router_add' %}" class="filters" data-busy="Adding router">
     {% csrf_token %}
     <label class="sr-only" for="router-name">Name of the new router</label>
-    <input id="router-name" name="name" type="text" required maxlength="80" placeholder="Where this router serves">
+    <input id="router-name" name="name" type="text" required maxlength="80" placeholder="Name of the router (e.g. Main office)">
     <label class="sr-only" for="router-interface">Guest bridge for the Wi-Fi</label>
-    <input id="router-interface" name="hotspot_interface" type="text" maxlength="60" placeholder="Wi-Fi bridge (bridge)">
+    <input id="router-interface" name="hotspot_interface" type="text" maxlength="60" placeholder="Wi-Fi bridge (leave blank for default: bridge)">
     <button class="btn btn--primary btn--sm" type="submit">Add router</button>
   </form>
   {% endif %}

@@ -65,17 +65,29 @@ def activate_grant(grant: AccessGrant, *, extend: bool = False) -> AccessGrant:
         raise ProvisioningDeferred("No router configured")
 
     grant.router = router
-    # Router-side timer counts from now, so the DB clock must too.
-    start = timezone.now()
-    if extend and grant.state == "active" and grant.expires_at > start:
+    now = timezone.now()
+    is_extension = bool(
+        extend
+        and grant.hotspot_username
+        and grant.state == "active"
+        and grant.expires_at
+        and grant.expires_at > now
+    )
+    if is_extension:
         start = grant.expires_at
+        expires_at = start + timedelta(minutes=grant.package.duration_minutes)
+        router_minutes = max(1, int((expires_at - now).total_seconds() // 60))
+    else:
+        start = now
+        expires_at = now + timedelta(minutes=grant.package.duration_minutes)
+        router_minutes = grant.package.duration_minutes
 
     try:
         mikrotik.add_hotspot_user(
             router,
             grant.customer.mac_address,
             profile=router.hotspot_profile,
-            minutes=grant.package.duration_minutes,
+            minutes=router_minutes,
             comment=f"pingota {grant.package.name}",
         )
     except (mikrotik.RouterError, ValueError) as exc:
@@ -87,8 +99,8 @@ def activate_grant(grant: AccessGrant, *, extend: bool = False) -> AccessGrant:
         raise ProvisioningDeferred(str(exc)) from exc
 
     grant.state = "active"
-    grant.started_at = start
-    grant.expires_at = start + timedelta(minutes=grant.package.duration_minutes)
+    grant.started_at = start if is_extension else now
+    grant.expires_at = expires_at
     grant.revoked_reason = ""
     grant.hotspot_username = mikrotik.hotspot_user_name(grant.customer.mac_address)
     grant.save(
@@ -116,11 +128,10 @@ def open_grant(isp, mac: str, package, router=None, phone: str = "") -> AccessGr
         .first()
     )
     if existing and package.kind == "hourly":
-        # Customer topped up while still online: extend the pass in place so the
-        # router has exactly one user for the MAC and the sweeper one row.
+        # Customer topped up while still online: return the existing grant.
+        # activate_grant will extend expires_at and update the router uptime limit.
         existing.package = package
-        existing.expires_at = max(existing.expires_at, now) + timedelta(minutes=package.duration_minutes)
-        existing.save(update_fields=["package", "expires_at"])
+        existing.save(update_fields=["package"])
         return existing
 
     return AccessGrant.objects.create(

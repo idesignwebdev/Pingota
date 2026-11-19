@@ -15,8 +15,12 @@
     <div class="pass__row"><span>Ends</span><span>{{ grant.expires_at|date:"d M, H:i" }}</span></div>
   </div>
 
-  <p class="status-note">Close this page and open any website to start browsing. Access ends on the router at the time shown.</p>
-  <a class="btn btn--secondary btn--block" style="margin-top:20px" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
+  {% if connect_url %}
+    <a class="btn btn--primary btn--block" style="margin:20px 0 10px 0" href="{{ connect_url }}">Connect now</a>
+  {% endif %}
+
+  <p class="status-note">Close this page and enjoy your connection. Access ends on the router at the time shown.</p>
+  <a class="btn btn--secondary btn--block" style="margin-top:10px" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
 
 {% elif payment.status == "paid" and grant %}
   <div class="portal__lead">
@@ -33,7 +37,7 @@
   <div id="status-root" data-state-url="/portal/{{ isp.slug }}/status/{{ payment.reference }}/state/">
     <div class="portal__lead">
       <h1>Payment received</h1>
-      <p class="lede">Your pass is being activated on the router. This usually takes a few seconds.</p>
+      <p class="lede">Your pass is being activated. This usually takes a few seconds.</p>
     </div>
 
     <div class="pass" style="margin:20px 0">
@@ -47,8 +51,7 @@
 
     <p class="small" style="margin-top:16px">
       If the status does not change after a minute,
-      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the support code below.
-      {% else %}ask the operator at the counter and give the support code below.{% endif %}
+      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the reference code/support code{% endif %}
     </p>
     <details class="event-detail">
       <summary>Support code</summary>
@@ -95,8 +98,7 @@
 
     <p class="small" style="margin-top:16px">
       If the payment does not confirm,
-      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.
-      {% else %}ask the operator at the counter.{% endif %}
+      {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a>.{% endif %}
     </p>
     <details class="event-detail">
       <summary>Support code</summary>
