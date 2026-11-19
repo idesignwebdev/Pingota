@@ -588,7 +588,7 @@ class RouterHealthTests(TestCase):
         self.assertEqual(router.health_label, "Not checked")
 
 
-@override_settings(PUBLIC_BASE_URL="https://pingota.example")
+@override_settings(PUBLIC_BASE_URL="https://pingota.example", PAYSTACK_SECRET_KEY="sk_test_platform")
 class PortalCheckoutTests(TestCase):
     def setUp(self):
         self.isp = Isp.objects.create(name="Net", slug="net")
@@ -718,8 +718,8 @@ class RouterInstallStateTests(TestCase):
     def test_install_page_polls_instead_of_asking_for_a_refresh(self):
         self.client.force_login(self.operator)
         response = self.client.get(f"/admin/routers/{self.router.id}/")
+        self.assertContains(response, 'id="install-status"')
         self.assertContains(
             response, f'data-state-url="/admin/routers/{self.router.id}/state/"'
         )
-        self.assertContains(response, "This page updates by itself.")
         self.assertNotContains(response, "Refresh this page</a>")

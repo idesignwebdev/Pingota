@@ -75,6 +75,11 @@ def platform_configured() -> bool:
     return bool(settings.PAYSTACK_SECRET_KEY)
 
 
+def configured_for(isp) -> bool:
+    """True when a guest checkout can be started for this network."""
+    return bool(_secret_for(isp))
+
+
 def _initialize(
     payment,
     *,

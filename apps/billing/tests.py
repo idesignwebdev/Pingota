@@ -59,6 +59,28 @@ class SettleOnceTests(TestCase):
         self.assertEqual(AccessGrant.objects.filter(isp=self.isp).count(), 1)
 
     @mock.patch("apps.network.mikrotik.add_hotspot_user")
+    def test_queued_grant_survives_the_sweeper_and_is_retried(self, add_user):
+        from apps.network import mikrotik
+        from apps.network.provisioning import expire_due_grants, retry_pending_grants
+
+        add_user.side_effect = mikrotik.RouterUnreachable("timeout")
+        settle_payment(self.payment, provider_reference="1")
+        grant = AccessGrant.objects.get(isp=self.isp)
+        self.assertEqual(grant.revoked_reason, "waiting for router")
+        # The provisional clock must run from the pass, not from now.
+        self.assertGreater(grant.expires_at, timezone.now())
+
+        self.assertEqual(expire_due_grants(), 0)
+        grant.refresh_from_db()
+        self.assertEqual(grant.state, "active")
+
+        add_user.side_effect = None
+        self.assertEqual(retry_pending_grants(), 1)
+        grant.refresh_from_db()
+        self.assertEqual(grant.revoked_reason, "")
+        self.assertGreater(grant.expires_at, timezone.now())
+
+    @mock.patch("apps.network.mikrotik.add_hotspot_user")
     def test_grant_is_not_marked_live_when_router_fails(self, add_user):
         from apps.network import mikrotik
 
@@ -192,6 +214,62 @@ class HotspotHandoffTests(TestCase):
         ).json()
 
         self.assertEqual(state["connect_url"], "")
+
+
+@override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY, PAYSTACK_SECRET_KEY="")
+class CheckoutRailTests(TestCase):
+    """Only offer payment methods the ISP can actually complete."""
+
+    def setUp(self):
+        self.isp = Isp.objects.create(name="Net", slug="net")
+        self.package = Package.objects.create(
+            isp=self.isp, name="1 hour", price=Decimal("10"), duration_minutes=60
+        )
+        self.mac = "A4:5E:60:1C:92:0B"
+
+    def enable_mpesa(self):
+        from apps.tenants.models import MpesaConfig
+
+        cfg = MpesaConfig.objects.create(isp=self.isp, enabled=True)
+        cfg.set_shortcode("174379")
+        cfg.set_consumer_key("consumer-key")
+        cfg.set_secret("consumer-secret")
+        cfg.set_passkey("passkey")
+        cfg.save()
+        return cfg
+
+    def test_page_hides_the_form_when_no_rail_is_configured(self):
+        response = self.client.get(f"/portal/net/?mac={self.mac}")
+        self.assertContains(response, "No payment method yet")
+        self.assertNotContains(response, 'value="mpesa"')
+        self.assertNotContains(response, 'value="paystack"')
+
+    def test_checkout_refuses_an_unconfigured_rail(self):
+        response = self.client.post(
+            f"/portal/net/checkout/{self.package.id}/",
+            {"provider": "mpesa", "phone": "0712345678", "mac": self.mac},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "not switched on", status_code=400)
+        self.assertEqual(Payment.objects.count(), 0)
+
+    def test_configured_mpesa_is_offered(self):
+        self.enable_mpesa()
+        response = self.client.get(f"/portal/net/?mac={self.mac}")
+        self.assertContains(response, 'value="mpesa"')
+        self.assertNotContains(response, "No payment method yet")
+
+    def test_mpesa_needs_every_credential(self):
+        from apps.billing import mpesa
+
+        cfg = self.enable_mpesa()
+        isp = Isp.objects.get(pk=self.isp.pk)
+        self.assertTrue(mpesa.configured_for(isp))
+
+        cfg.passkey = ""
+        cfg.save(update_fields=["passkey"])
+        isp = Isp.objects.get(pk=self.isp.pk)
+        self.assertFalse(mpesa.configured_for(isp))
 
 
 @override_settings(FIELD_ENCRYPTION_KEY=TEST_KEY)

@@ -19,8 +19,9 @@
     The code is spent and your pass is saved, but the router has not confirmed it yet. Open a website in a minute. If it still fails,
     {% if isp.support_phone %}call <a href="tel:{{ isp.support_phone }}">{{ isp.support_phone }}</a> and give the code above.{% else %}show the code above to the operator.{% endif %}
   </div>
+  <a class="btn btn--secondary btn--block" style="margin-top:16px" href="/portal/{{ isp.slug }}/">Check again</a>
 {% else %}
   <p class="status-note">Your pass is active. Close this page and open any website to start browsing.</p>
-  <a class="btn btn--secondary btn--block" style="margin-top:20px" href="/portal/{{ isp.slug }}/pass/">View my passes</a>
+  <a class="btn btn--secondary btn--block" style="margin-top:20px" href="/portal/{{ isp.slug }}/">Connect this device</a>
 {% endif %}
 {% endblock %}

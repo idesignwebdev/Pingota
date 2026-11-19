@@ -130,7 +130,10 @@ def open_grant(isp, mac: str, package, router=None, phone: str = "") -> AccessGr
         router=router or pick_router(isp),
         state="active",
         started_at=now,
-        expires_at=now,
+        # Provisional clock, reset by activate_grant on success. It must not be
+        # ``now``: the sweeper would expire a queued grant before it ever got
+        # its retry, so a guest whose router was briefly down lost the pass.
+        expires_at=now + timedelta(minutes=package.duration_minutes),
     )
 
 

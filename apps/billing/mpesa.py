@@ -72,6 +72,25 @@ def platform_configured() -> bool:
     )
 
 
+def configured_for(isp) -> bool:
+    """True when this ISP has the four credentials an STK push needs.
+
+    Guest sales always use the ISP's own till, so the platform keys do not
+    count here.
+    """
+    cfg = getattr(isp, "mpesa", None)
+    if not cfg or not cfg.enabled:
+        return False
+    return all(
+        [
+            cfg.get_shortcode(),
+            cfg.get_consumer_key(),
+            cfg.get_secret(),
+            cfg.get_passkey(),
+        ]
+    )
+
+
 def _stk_push(cfg, payment, phone: str, *, callback_url: str, description: str) -> dict:
     if not cfg or not cfg.enabled:
         raise MpesaError("M-Pesa is not configured")

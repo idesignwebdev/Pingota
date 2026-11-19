@@ -41,6 +41,7 @@ belongs to which pass.
     </div>
   </fieldset>
 
+  {% if providers %}
   <div>
     <label for="phone">Phone number</label>
     <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required
@@ -57,8 +58,9 @@ belongs to which pass.
   <fieldset style="border:0; padding:0; margin:0">
     <legend class="small" style="font-weight:600; margin-bottom:6px">Pay with</legend>
     <div class="seg">
-      <label><input type="radio" name="provider" value="paystack" checked> Card or bank</label>
-      <label><input type="radio" name="provider" value="mpesa"> M-Pesa</label>
+      {% for rail in providers %}
+      <label><input type="radio" name="provider" value="{{ rail }}"{% if forloop.first %} checked{% endif %}>{% if rail == "mpesa" %} M-Pesa{% else %} Card or bank{% endif %}</label>
+      {% endfor %}
     </div>
   </fieldset>
 
@@ -66,6 +68,12 @@ belongs to which pass.
           {% if not mac %}disabled aria-disabled="true"{% endif %}>Continue to payment</button>
   {% if not mac %}
     <p class="help" style="margin:0">The button becomes active when this page opens from the Wi-Fi login.</p>
+  {% endif %}
+  {% else %}
+  <div class="alert alert--warn">
+    <span class="alert__label">No payment method yet</span>
+    This network cannot take card or M-Pesa payments. Use a voucher code below, or ask the operator.
+  </div>
   {% endif %}
 </form>
 {% endwith %}

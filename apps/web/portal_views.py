@@ -79,6 +79,16 @@ def portal_access_json(view):
     return wrapper
 
 
+def _rails(isp: Isp) -> list[str]:
+    """Payment methods a guest can actually complete on this network."""
+    rails = []
+    if paystack.configured_for(isp):
+        rails.append("paystack")
+    if mpesa.configured_for(isp):
+        rails.append("mpesa")
+    return rails
+
+
 def _live_grant(isp: Isp, mac: str):
     if not mac:
         return None
@@ -86,6 +96,7 @@ def _live_grant(isp: Isp, mac: str):
         AccessGrant.objects.filter(
             isp=isp, customer__mac_address=mac, state="active", expires_at__gt=timezone.now()
         )
+        .exclude(revoked_reason="waiting for router")
         .select_related("package")
         .first()
     )
@@ -117,6 +128,7 @@ def index(request, isp):
             "mac": mac,
             "live": live,
             "packages_qs": isp.packages.filter(is_active=True),
+            "providers": _rails(isp),
             "hotspot": {
                 "link_login_only": request.GET.get("link-login-only", ""),
                 "link_orig": request.GET.get("link-orig", ""),
@@ -146,6 +158,7 @@ def packages(request, isp):
             "isp": isp,
             "mac": mac,
             "packages_qs": isp.packages.filter(is_active=True),
+            "providers": _rails(isp),
             "selected_package": selected,
         },
     )
@@ -217,7 +230,29 @@ def _checkout_impl(request, isp, package_id):
     email = (
         request.POST.get("email") or session.get("pending_email") or ""
     ).strip() or f"guest@{isp.slug}.local"
-    provider = request.POST.get("provider") or session.get("pending_provider") or "paystack"
+    # Never call a provider the ISP has not configured: that used to end in a
+    # 502, which Cloudflare replaced with its own error page.
+    rails = _rails(isp)
+    requested = (request.POST.get("provider") or "").strip().lower()
+    if requested:
+        provider = requested
+    else:
+        provider = session.get("pending_provider") or (rails[0] if rails else "")
+    if provider not in rails:
+        return render(
+            request,
+            "portal/error.html",
+            {
+                "isp": isp,
+                "message": (
+                    "That payment method is not available on this network. Choose another one, "
+                    "or ask the operator for a voucher code."
+                    if rails
+                    else "Payments are not switched on for this network yet. Ask the operator for a voucher code."
+                ),
+            },
+            status=400,
+        )
     if provider == "mpesa" and not phone:
         return render(
             request,
@@ -277,7 +312,7 @@ def _checkout_impl(request, isp, package_id):
                     "isp": isp,
                     "message": "The M-Pesa prompt could not be sent. Check the phone number and try again, or pay by card.",
                 },
-                status=502,
+                status=400,
             )
 
     try:
@@ -303,7 +338,7 @@ def _checkout_impl(request, isp, package_id):
                 "isp": isp,
                 "message": "Card payment is unavailable right now. Try M-Pesa, or come back in a few minutes.",
             },
-            status=502,
+            status=400,
         )
 
 
@@ -360,6 +395,10 @@ def redeem_voucher(request, isp):
             {"isp": isp, "message": str(exc)},
             status=400,
         )
+    if grant.revoked_reason != "waiting for router":
+        # Live on the router already: let the portal bounce the device through
+        # the hotspot login instead of leaving it on the login page.
+        return redirect("portal:isp_index", isp_slug=isp.slug)
     return render(
         request,
         "portal/voucher_ok.html",
@@ -416,7 +455,14 @@ def _hotspot_login_url(request, grant) -> str:
     """
     link = request.session.get("hotspot_link_login_only", "")
     mac = request.session.get("portal_mac", "")
-    if not (link and mac and grant and grant.state == "active" and grant.seconds_left > 0):
+    if not (
+        link
+        and mac
+        and grant
+        and grant.state == "active"
+        and grant.seconds_left > 0
+        and grant.revoked_reason != "waiting for router"
+    ):
         return ""
     try:
         params = {
