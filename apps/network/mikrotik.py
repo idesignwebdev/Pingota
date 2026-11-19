@@ -184,11 +184,29 @@ class RouterOSClient:
             finally:
                 self._sock = None
 
+    @staticmethod
+    def _sentence(cmd: str, attrs: dict) -> list[str]:
+        """Encode one API command.
+
+        ``?name=x`` is a query word and must not carry the ``=`` prefix that
+        marks an attribute; sending ``=?name=x`` makes RouterOS answer
+        "unknown parameter ?name" and every user lookup fails.
+        """
+        sentence = [cmd]
+        for key, value in attrs.items():
+            if value is None:
+                continue
+            key = key.replace("_", "-")
+            if key.startswith("?"):
+                sentence.append(f"?{key[1:]}={value}")
+            else:
+                sentence.append(f"={key}={value}")
+        return sentence
+
     def command(self, cmd: str, **attrs) -> list[dict]:
         if self._sock is None:
             self.connect()
-        sentence = [cmd] + [f"={k.replace('_', '-')}={v}" for k, v in attrs.items() if v is not None]
-        self._write_sentence(sentence)
+        self._write_sentence(self._sentence(cmd, attrs))
 
         rows: list[dict] = []
         while True:

@@ -94,6 +94,26 @@ class TunGuardClientTests(SimpleTestCase):
         self.assertEqual(server_public_key(), base64.b64encode(bytes(range(32))).decode("ascii"))
 
 
+    def test_query_words_are_not_attributes(self):
+        from apps.network.mikrotik import RouterOSClient
+
+        self.assertEqual(
+            RouterOSClient._sentence("/ip/hotspot/user/print", {"?name": "pg-a45e601c920b"}),
+            ["/ip/hotspot/user/print", "?name=pg-a45e601c920b"],
+        )
+
+    def test_attributes_and_item_ids_keep_their_prefix(self):
+        from apps.network.mikrotik import RouterOSClient
+
+        self.assertEqual(
+            RouterOSClient._sentence(
+                "/ip/hotspot/user/add",
+                {"name": "pg-x", "limit_uptime": "60m", ".id": "*1", "skip": None},
+            ),
+            ["/ip/hotspot/user/add", "=name=pg-x", "=limit-uptime=60m", "=.id=*1"],
+        )
+
+
 class TunnelEndpointHostTests(SimpleTestCase):
     def test_strips_the_parts_routeros_rejects(self):
         from config.settings import _tunnel_endpoint_host
