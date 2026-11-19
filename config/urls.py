@@ -4,7 +4,7 @@ from django.urls import include, path, reverse_lazy
 from django.views.generic import RedirectView, TemplateView
 
 from apps.web import marketing_views, onboarding_views, signup_views
-from apps.web.auth_views import PanelLoginView
+from apps.web.auth_views import PanelLoginView, PanelLogoutView
 
 admin.site.site_header = "Pingota"
 admin.site.site_title = "Pingota admin"
@@ -27,7 +27,7 @@ urlpatterns = [
     # Operator panel
     path("admin/login/", PanelLoginView.as_view(), name="login"),
 
-    path("admin/logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("admin/logout/", PanelLogoutView.as_view(), name="logout"),
     path(
         "admin/password-change/",
         auth_views.PasswordChangeView.as_view(

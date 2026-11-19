@@ -13,8 +13,17 @@
       </nav>
     </details>
     <div class="site-header__actions">
-      <a class="btn btn--secondary btn--sm" href="/admin/login/">Sign in</a>
-      <a class="btn btn--primary btn--sm" href="/signup/">Request a panel</a>
+      {% if request.user.is_authenticated %}
+        {% if request.user.is_superuser and not request.user.membership %}
+          <a class="btn btn--secondary btn--sm" href="/django-admin/">Platform Admin</a>
+        {% else %}
+          <a class="btn btn--secondary btn--sm" href="{% url 'panel:overview' %}">Dashboard</a>
+        {% endif %}
+        <a class="btn btn--primary btn--sm" href="{% url 'logout' %}">Sign out</a>
+      {% else %}
+        <a class="btn btn--secondary btn--sm" href="{% url 'login' %}">Sign in</a>
+        <a class="btn btn--primary btn--sm" href="/signup/">Request a panel</a>
+      {% endif %}
     </div>
   </div>
 </header>
@@ -35,7 +44,16 @@
       <a href="/pricing/">Pricing</a>
       <a href="/docs/">Documentation</a>
       <a href="mailto:idesignweb.co.ke@gmail.com">Contact</a>
-      <a href="/admin/login/">Operator sign in</a>
+      {% if request.user.is_authenticated %}
+        {% if request.user.is_superuser and not request.user.membership %}
+          <a href="/django-admin/">Platform Admin</a>
+        {% else %}
+          <a href="{% url 'panel:overview' %}">Dashboard</a>
+        {% endif %}
+        <a href="{% url 'logout' %}">Sign out</a>
+      {% else %}
+        <a href="{% url 'login' %}">Operator sign in</a>
+      {% endif %}
       <a href="https://github.com/idesignwebdev/Pingota">Source</a>
     </nav>
   </div>
