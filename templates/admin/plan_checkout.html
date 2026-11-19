@@ -19,12 +19,12 @@
     {% if isp.trial_has_ended %}
       <div class="alert alert--warn">
         <span class="alert__label">Trial ended</span>
-        The trial ended on {{ isp.trial_ends_at|date:"d M Y, H:i" }}. Paying switches the panel, guest portal and router access back on.
+        The trial ended on {{ isp.trial_ends_at|date:"d M Y, H:i" }}. Pay to get back on.
       </div>
     {% elif isp.plan_has_ended %}
       <div class="alert alert--warn">
         <span class="alert__label">Plan ended</span>
-        The plan ended on {{ isp.plan_ends_at|date:"d M Y, H:i" }}. Paying switches the panel, guest portal and router access back on.
+        The plan ended on {{ isp.plan_ends_at|date:"d M Y, H:i" }}. Pay to get back on.
       </div>
     {% elif isp.plan_ends_at %}
       <div class="alert alert--info">
@@ -53,9 +53,9 @@
         <form method="post" action="{{ request.path }}" class="stack-16" data-busy="Opening Paystack">
           {% csrf_token %}
           <input type="hidden" name="provider" value="paystack">
-          <h2 style="font-size:1rem; margin:0">Card or bank</h2>
+          <h2 style="font-size:1rem; margin:0">Mpesa or Card</h2>
           <div>
-            <label for="plan-email">Receipt email</label>
+            <label for="plan-email">Your email</label>
             <input id="plan-email" name="email" type="email" autocomplete="email" required
                    value="{{ email }}" {% if field_errors.email %}aria-invalid="true" aria-describedby="plan-email-error"{% endif %}>
             {% if field_errors.email %}

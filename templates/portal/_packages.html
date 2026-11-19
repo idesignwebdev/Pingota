@@ -60,7 +60,7 @@ belongs to which pass.
     <legend class="small" style="font-weight:600; margin-bottom:6px">Pay with</legend>
     <div class="seg">
       {% for rail in providers %}
-      <label><input type="radio" name="provider" value="{{ rail }}"{% if forloop.first %} checked{% endif %}>{% if rail == "mpesa" %} M-Pesa{% else %} Card or bank{% endif %}</label>
+      <label><input type="radio" name="provider" value="{{ rail }}"{% if forloop.first %} checked{% endif %}>{% if rail == "mpesa" %} M-Pesa{% else %} Mpesa or Card{% endif %}</label>
       {% endfor %}
     </div>
   </fieldset>
