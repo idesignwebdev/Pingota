@@ -1093,7 +1093,7 @@ class PlanCheckoutTests(TestCase):
         response = self.client.get("/admin/plan/growth/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Pay for Growth")
-        self.assertContains(response, "Card or bank")
+        self.assertContains(response, "Mpesa or Card")
         self.assertContains(response, "M-Pesa")
         self.assertContains(response, "1,000")
 

@@ -1,0 +1,26 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block content %}
+<div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px">
+  <div class="module" style="flex:1; min-width:200px; padding:16px">
+    <h3 style="margin:0 0 4px; font-size:.85rem; color:#666">Total Revenue (Paid)</h3>
+    <p style="margin:0; font-size:1.6rem; font-weight:600; color:#417690">
+      KES {{ total_revenue|floatformat:0 }}
+    </p>
+    <p style="margin:4px 0 0; font-size:.8rem; color:#999">
+      {{ total_paid_count }} settled payment{{ total_paid_count|pluralize }}
+    </p>
+  </div>
+  <div class="module" style="flex:1; min-width:200px; padding:16px">
+    <h3 style="margin:0 0 4px; font-size:.85rem; color:#666">Pending</h3>
+    <p style="margin:0; font-size:1.6rem; font-weight:600; color:#e09c00">
+      {{ total_pending }}
+    </p>
+    <p style="margin:4px 0 0; font-size:.8rem; color:#999">
+      payment{{ total_pending|pluralize }} awaiting settlement
+    </p>
+  </div>
+</div>
+{{ block.super }}
+{% endblock %}
