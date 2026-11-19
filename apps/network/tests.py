@@ -50,6 +50,9 @@ class TunGuardClientTests(SimpleTestCase):
         self.assertIn('dst-host="pingota.example"', script)
         self.assertIn("/portal/north/hotspot/login.html", script)
         self.assertIn('dst-path="hotspot/login.html"', script)
+        # Both fetches share one line: RouterOS drops queued input while a
+        # fetch is still connecting, which split the report URL last time.
+        self.assertIn("keep-result=no; /tool/fetch", script)
 
     @mock.patch("apps.network.tunguard.urllib.request.urlopen")
     def test_register_router_uses_hex_key_and_single_host_route(self, urlopen):

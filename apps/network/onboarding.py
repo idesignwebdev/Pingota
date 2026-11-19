@@ -151,19 +151,18 @@ def install_script(router) -> str:
 /ip hotspot/remove [find interface="{router.hotspot_interface}"]
 /ip hotspot/profile/remove [find name="pingota"]
 /ip hotspot/profile/add name="pingota" login-by=mac,cookie,http-chap,http-pap html-directory=hotspot
-/ip hotspot/add name="pingota-hs" interface="{router.hotspot_interface}" profile="pingota" disabled=no comment="pingota"
+/ip hotspot/add name="pingota-hs" interface="{router.hotspot_interface}" profile="pingota" disabled=no
 /ip hotspot/walled-garden/remove [find dst-host="{panel_host}"]
 /ip hotspot/walled-garden/remove [find dst-host="*.paystack.com"]
 /ip hotspot/walled-garden/remove [find dst-host="*.paystack.co"]
 /ip hotspot/walled-garden/add dst-host="{panel_host}" action=allow comment="pingota"
 /ip hotspot/walled-garden/add dst-host="*.paystack.com" action=allow comment="pingota"
 /ip hotspot/walled-garden/add dst-host="*.paystack.co" action=allow comment="pingota"
-/tool/fetch url="{login_page}" dst-path="hotspot/login.html" keep-result=no
 
 :delay 5
 :local pgVersion [/system/resource/get value-name=version]
 :local pgBoard [/system/identity/get value-name=name]
-/tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no
+/tool/fetch url=("{report}?version=" . $pgVersion . "&board=" . $pgBoard) keep-result=no; /tool/fetch url="{login_page}" dst-path="hotspot/login.html" keep-result=no
 """
 
 
